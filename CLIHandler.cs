@@ -10,7 +10,7 @@
             {
                 Console.Write("P2PShare.Server>");
 
-                input = (await Console.In.ReadLineAsync())?.Trim();
+                input = (await Console.In.ReadLineAsync())?.Trim().ToLower();
             }
             while (String.IsNullOrEmpty(input));
 
