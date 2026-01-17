@@ -2,13 +2,13 @@
 {
     class Program
     {
-        static async void Main()
+        static async Task Main()
         {
             string command;
 
             do
             {
-                command = await CLIHandler.GetCommand();
+                command = await GetCommand();
 
                 switch (command)
                 {
@@ -28,6 +28,21 @@
                 }
             }
             while (command != "exit");
+        }
+
+        private static async Task<string> GetCommand()
+        {
+            string? input;
+
+            do
+            {
+                Console.Write("P2PShare.Server>");
+
+                input = (await Console.In.ReadLineAsync())?.Trim().ToLower();
+            }
+            while (String.IsNullOrEmpty(input));
+
+            return input;
         }
     }
 }
