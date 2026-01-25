@@ -97,7 +97,7 @@
             Console.Write("Server: ");
             ChangeConsoleColor(_running ? ConsoleColor.Green : ConsoleColor.Red);
             Console.WriteLine(_running ? "Running" : "Not running");
-            
+
             // koniec headeru
             ChangeConsoleColor(ConsoleColor.White);
             for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
