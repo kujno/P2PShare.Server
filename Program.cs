@@ -6,7 +6,7 @@ namespace P2PShare.Server
     {
         private static bool _running = false;
 
-        private static readonly string _helpSuggestionText = $"Use {Command.Help.ToString().ToLower()} command to display the list of all of the commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
+        private static readonly string _helpSuggestionText = $"Use \"{Command.Help.ToString().ToLower()}\" command to display the list of all of the commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
         private static readonly Dictionary<Command, string> _commandDescriptions = new()
         {
             { Command.Start, "Starts the server." },
@@ -21,7 +21,7 @@ namespace P2PShare.Server
         {
             Command? command;
 
-            DisplayHelpSuggestion();
+            DisplayHeader();
 
             do
             {
@@ -43,11 +43,11 @@ namespace P2PShare.Server
                 Console.Write("P2PShare.Server>");
 
                 ChangeConsoleColor(ConsoleColor.Yellow);
-                input = (await Console.In.ReadLineAsync())?.Trim().ToLower();
+                input = (await Console.In.ReadLineAsync())?.Trim();
             }
             while (String.IsNullOrEmpty(input));
 
-            return Enum.TryParse<Command>(input, out command) ? command : null;
+            return input.Length > 1 && Enum.TryParse<Command>($"{input.Substring(0, 1).ToUpper()}{input.Substring(1).ToLower()}", out command) ? command : null;
         }
 
         private static async Task CommandExecAsync(Command? command)
@@ -83,26 +83,27 @@ namespace P2PShare.Server
         {
             Console.Clear();
 
-            DisplayHelpSuggestion();
-
-            ChangeConsoleColor(ConsoleColor.White);
-            Console.Write("Server: ");
-            ChangeConsoleColor(_running ? ConsoleColor.Green : ConsoleColor.Red);
-            Console.WriteLine(_running ? "Running" : "Not running");
-
-            ChangeConsoleColor(ConsoleColor.White);
-            for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
-            for (int i = 0; i < 2; i++) Console.WriteLine();
+            DisplayHeader();
 
             ChangeConsoleColor(color);
             Console.WriteLine($"{output}\n");
         }
 
-        private static void DisplayHelpSuggestion()
+        private static void DisplayHeader()
         {
             ChangeConsoleColor(ConsoleColor.Gray);
-
             Console.WriteLine(_fullHelpSuggestionText);
+
+            // status servera
+            ChangeConsoleColor(ConsoleColor.White);
+            Console.Write("Server: ");
+            ChangeConsoleColor(_running ? ConsoleColor.Green : ConsoleColor.Red);
+            Console.WriteLine(_running ? "Running" : "Not running");
+            
+            // koniec headeru
+            ChangeConsoleColor(ConsoleColor.White);
+            for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
+            for (int i = 0; i < 2; i++) Console.WriteLine();
         }
     }
 }
