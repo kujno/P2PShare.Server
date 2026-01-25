@@ -4,9 +4,16 @@ namespace P2PShare.Server
 {
     class Program
     {
+        private static bool _running = false;
+        private static string _helpSuggestionText = $"--- Use {Command.Help.ToString().ToLower()} command to display the list of commands ---";
+
+        private static void ChangeConsoleColor(ConsoleColor color) => Console.ForegroundColor = color;
+
         static async Task Main()
         {
-            string command;
+            Command? command;
+
+            DisplayHelpSuggestion();
 
             do
             {
@@ -14,22 +21,25 @@ namespace P2PShare.Server
 
                 // command output + logic
             }
-            while (command != "exit");
+            while (command is not Command.Exit);
         }
 
-        private static async Task<string> GetCommand()
+        private static async Task<Command?> GetCommand()
         {
             string? input;
+            Command command;
 
             do
             {
+                ChangeConsoleColor(ConsoleColor.White);
                 Console.Write("P2PShare.Server>");
 
+                ChangeConsoleColor(ConsoleColor.Yellow);
                 input = (await Console.In.ReadLineAsync())?.Trim().ToLower();
             }
             while (String.IsNullOrEmpty(input));
 
-            return input;
+            return Enum.TryParse<Command>(input, out command) ? command : null;
         }
 
         private static async Task CommandExecAsync(Command? command)
@@ -55,9 +65,29 @@ namespace P2PShare.Server
             }
         }
 
-        private static void CommandDisplayOutput(string output)
+        private static void DisplayCommandOutput(string output)
         {
-            
+            Console.Clear();
+
+            DisplayHelpSuggestion();
+
+            ChangeConsoleColor(ConsoleColor.White);
+            Console.Write("Server: ");
+            ChangeConsoleColor(_running ? ConsoleColor.Green : ConsoleColor.Red);
+            Console.WriteLine(_running ? "Running" : "Not running");
+
+            ChangeConsoleColor(ConsoleColor.White);
+            for (int i = 0; i < _helpSuggestionText.Length; i++) Console.Write('-');
+            for (int i = 0; i < 2; i++) Console.WriteLine();
+
+            Console.WriteLine(output);
+        }
+
+        private static void DisplayHelpSuggestion()
+        {
+            ChangeConsoleColor(ConsoleColor.Gray);
+
+            Console.WriteLine(_helpSuggestionText);
         }
     }
 }
