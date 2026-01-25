@@ -80,7 +80,7 @@ namespace P2PShare.Server
             for (int i = 0; i < _helpSuggestionText.Length; i++) Console.Write('-');
             for (int i = 0; i < 2; i++) Console.WriteLine();
 
-            Console.WriteLine(output);
+            Console.WriteLine($"{output}\n");
         }
 
         private static void DisplayHelpSuggestion()
