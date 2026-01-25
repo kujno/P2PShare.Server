@@ -5,7 +5,7 @@ namespace P2PShare.Server
     class Program
     {
         private static bool _running = false;
-        private static string _helpSuggestionText = $"--- Use {Command.Help.ToString().ToLower()} command to display the list of commands ---";
+        private static string _helpSuggestionText = $"Use {Command.Help.ToString().ToLower()} command to display the list of commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
 
         private static void ChangeConsoleColor(ConsoleColor color) => Console.ForegroundColor = color;
 
@@ -60,12 +60,14 @@ namespace P2PShare.Server
                     break;
 
                 default:
-                    // display unrecognized command
+                    DisplayCommandOutput($"Unrecognized command. {_helpSuggestionText}!", ConsoleColor.Red);
                     break;
             }
         }
 
-        private static void DisplayCommandOutput(string output)
+        //private static void DisplayCommandOutput(string output) => DisplayCommandOutput(output, ConsoleColor.White);
+
+        private static void DisplayCommandOutput(string output, ConsoleColor color)
         {
             Console.Clear();
 
@@ -77,9 +79,10 @@ namespace P2PShare.Server
             Console.WriteLine(_running ? "Running" : "Not running");
 
             ChangeConsoleColor(ConsoleColor.White);
-            for (int i = 0; i < _helpSuggestionText.Length; i++) Console.Write('-');
+            for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
             for (int i = 0; i < 2; i++) Console.WriteLine();
 
+            ChangeConsoleColor(color);
             Console.WriteLine($"{output}\n");
         }
 
@@ -87,7 +90,7 @@ namespace P2PShare.Server
         {
             ChangeConsoleColor(ConsoleColor.Gray);
 
-            Console.WriteLine(_helpSuggestionText);
+            Console.WriteLine(_fullHelpSuggestionText);
         }
     }
 }
