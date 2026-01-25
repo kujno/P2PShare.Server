@@ -17,14 +17,14 @@ namespace P2PShare.Server
 
             do
             {
-                command = await GetCommand();
+                command = await CommandGet();
 
-                // command output + logic
+                await CommandExecAsync(command);
             }
             while (command is not Command.Exit);
         }
 
-        private static async Task<Command?> GetCommand()
+        private static async Task<Command?> CommandGet()
         {
             string? input;
             Command command;
