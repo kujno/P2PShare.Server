@@ -5,7 +5,15 @@ namespace P2PShare.Server
     class Program
     {
         private static bool _running = false;
-        private static string _helpSuggestionText = $"Use {Command.Help.ToString().ToLower()} command to display the list of commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
+
+        private static readonly string _helpSuggestionText = $"Use {Command.Help.ToString().ToLower()} command to display the list of all of the commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
+        private static readonly Dictionary<Command, string> _commandDescriptions = new()
+        {
+            { Command.Start, "Starts the server." },
+            { Command.Stop, "Stops the server." },
+            { Command.Help, "Displays all of the commands." },
+            { Command.Exit, "Exits the application." }
+        };
 
         private static void ChangeConsoleColor(ConsoleColor color) => Console.ForegroundColor = color;
 
@@ -53,10 +61,14 @@ namespace P2PShare.Server
                     // Stop server logic here
                     break;
                 case Command.Help:
-                    // help output
+                    string output = String.Empty;
+
+                    foreach (var commandAndDesc in _commandDescriptions) output += $"{commandAndDesc.Key.ToString().ToLower()} - {commandAndDesc.Value}\n";
+
+                    DisplayCommandOutput(output.Trim());
                     break;
                 case Command.Exit:
-                    // dispose resources here
+                    // nothing to do here
                     break;
 
                 default:
@@ -65,7 +77,7 @@ namespace P2PShare.Server
             }
         }
 
-        //private static void DisplayCommandOutput(string output) => DisplayCommandOutput(output, ConsoleColor.White);
+        private static void DisplayCommandOutput(string output) => DisplayCommandOutput(output, ConsoleColor.White);
 
         private static void DisplayCommandOutput(string output, ConsoleColor color)
         {
