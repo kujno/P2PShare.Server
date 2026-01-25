@@ -1,4 +1,6 @@
-﻿namespace P2PShare.Server
+﻿using P2PShare.Server.Models;
+
+namespace P2PShare.Server
 {
     class Program
     {
@@ -10,22 +12,7 @@
             {
                 command = await GetCommand();
 
-                switch (command)
-                {
-                    case "start":
-                        // Start server logic here
-                        break;
-                    case "stop":
-                        // Stop server logic here
-                        break;
-                    case "exit":
-                        // dispose resources here
-                        break;
-                    
-                    default:
-                        // display help probably
-                        break;
-                }
+                // command output + logic
             }
             while (command != "exit");
         }
@@ -43,6 +30,34 @@
             while (String.IsNullOrEmpty(input));
 
             return input;
+        }
+
+        private static async Task CommandExecAsync(Command? command)
+        {
+            switch (command)
+            {
+                case Command.Start:
+                    // Start server logic here
+                    break;
+                case Command.Stop:
+                    // Stop server logic here
+                    break;
+                case Command.Help:
+                    // help output
+                    break;
+                case Command.Exit:
+                    // dispose resources here
+                    break;
+
+                default:
+                    // display unrecognized command
+                    break;
+            }
+        }
+
+        private static void CommandDisplayOutput(string output)
+        {
+            
         }
     }
 }
