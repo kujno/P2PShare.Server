@@ -1,4 +1,4 @@
-﻿namespace P2PShare.Server.Models
+﻿namespace P2PShare.Server
 {
     enum Command
     {

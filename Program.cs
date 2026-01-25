@@ -1,6 +1,4 @@
-﻿using P2PShare.Server.Models;
-
-namespace P2PShare.Server
+﻿namespace P2PShare.Server
 {
     class Program
     {
