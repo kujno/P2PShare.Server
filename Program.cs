@@ -1,4 +1,6 @@
-﻿namespace P2PShare.Server
+﻿using P2PShare.Server.DatabaseAccess;
+
+namespace P2PShare.Server
 {
     class Program
     {
@@ -54,6 +56,18 @@
             {
                 case Command.Start:
                     // Start server logic here
+
+                    //testing
+                    try
+                    {
+                        await (await DatabaseContext.CreateAsync(new CancellationTokenSource().Token)).AddUserAsync("halo", "jedensdava");
+
+                        DisplayCommandOutput("success");
+                    }
+                    catch (Exception ex)
+                    {
+                        DisplayCommandOutput(ex.Message);
+                    }
                     break;
                 case Command.Stop:
                     // Stop server logic here
