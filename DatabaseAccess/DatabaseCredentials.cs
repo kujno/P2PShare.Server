@@ -2,18 +2,15 @@
 
 namespace P2PShare.Server.DatabaseAccess
 {
-    public class DatabaseCredentials
+    public static class DatabaseCredentials
     {
-        public string? Server { get; private set; }
-        public string? Database { get; private set; }
-        public string? UserID { get; private set; }
-        public string? Password { get; private set; }
+        public static string? Server { get; private set; }
+        public static string? Database { get; private set; }
+        public static string? UserID { get; private set; }
+        public static string? Password { get; private set; }
 
-        private DatabaseCredentials() { }
-
-        public static async Task<DatabaseCredentials> GetAsync(CancellationToken cancellationToken)
+        public static async Task InitAsync(CancellationToken cancellationToken)
         {
-            DatabaseCredentials credentials = new();
             JsonNode? databaseCredentials;
 
             try
@@ -27,12 +24,10 @@ namespace P2PShare.Server.DatabaseAccess
 
             if (databaseCredentials is null) throw new Exception("AppSettings.json is invalid or missing.");
 
-            credentials.Server = databaseCredentials["Server"]?.GetValue<string>();
-            credentials.Database = databaseCredentials["Database"]?.GetValue<string>();
-            credentials.UserID = databaseCredentials["UserID"]?.GetValue<string>();
-            credentials.Password = databaseCredentials["Password"]?.GetValue<string>();
-
-            return credentials;
+            Server = databaseCredentials[nameof(Server)]?.GetValue<string>();
+            Database = databaseCredentials[nameof(Database)]?.GetValue<string>();
+            UserID = databaseCredentials[nameof(UserID)]?.GetValue<string>();
+            Password = databaseCredentials[nameof(Password)]?.GetValue<string>();
         }
     }
 }

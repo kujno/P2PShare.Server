@@ -2,33 +2,27 @@
 
 namespace P2PShare.Server.DatabaseAccess
 {
-    public class DatabaseContext
+    public static class DatabaseContext
     {
-        private DatabaseCredentials? _credentials;
-        private CancellationToken _cancellationToken;
-        private string? _connectionString;
+        private static CancellationToken _cancellationToken;
+        private static string? _connectionString;
 
-        private DatabaseContext(CancellationToken cancellationToken) => _cancellationToken = cancellationToken;
-
-        public static async Task<DatabaseContext> CreateAsync(CancellationToken cancellationToken)
+        public static async Task InitAsync(CancellationToken cancellationToken)
         {
-            DatabaseContext context = new(cancellationToken);
-            
-            context._credentials = await DatabaseCredentials.GetAsync(cancellationToken);
-            context._connectionString = $"Server={context._credentials.Server};Database={context._credentials.Database};User ID={context._credentials.UserID};Password={context._credentials.Password};";
-            
-            return context;
+            _cancellationToken = cancellationToken;
+            await DatabaseCredentials.InitAsync(cancellationToken);
+            _connectionString = $"Server={DatabaseCredentials.Server};Database={DatabaseCredentials.Database};User ID={DatabaseCredentials.UserID};Password={DatabaseCredentials.Password};";
         }
 
-        public async Task AddUserAsync(string username, string hash)
-        {    
+        public static async Task AddUserAsync(string username, string hash, string name, string surename)
+        {
             using (MySqlConnection connection = new(_connectionString))
             {
                 connection.Open();
 
-                using (MySqlCommand command = new($"INSERT INTO users VALUES (\"{username}\", \"{hash}\");", connection))
+                using (MySqlCommand command = new($"insert into users (username, password_hash, name, surename) values (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");", connection))
                 {
-                    await command.ExecuteNonQueryAsync();
+                    await command.ExecuteNonQueryAsync(_cancellationToken);
                 }
             }
         }

@@ -60,7 +60,8 @@ namespace P2PShare.Server
                     //testing
                     try
                     {
-                        await (await DatabaseContext.CreateAsync(new CancellationTokenSource().Token)).AddUserAsync("halo", "jedensdava");
+                        await DatabaseContext.InitAsync(new CancellationTokenSource().Token);
+                        await DatabaseContext.AddUserAsync("nejakuusername", "hash123", "Matej", "Kujnisch");
 
                         DisplayCommandOutput("success");
                     }
