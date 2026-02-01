@@ -1,10 +1,8 @@
-﻿using P2PShare.Server.DatabaseAccess;
-
-namespace P2PShare.Server
+﻿namespace P2PShare.Server
 {
     class Program
     {
-        private static bool _running = false;
+        private static Task? _server;
 
         private static readonly string _helpSuggestionText = $"Use \"{Command.Help.ToString().ToLower()}\" command to display the list of all of the commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
         private static readonly Dictionary<Command, string> _commandDescriptions = new()
@@ -27,7 +25,7 @@ namespace P2PShare.Server
             {
                 command = await CommandGet();
 
-                await CommandExecAsync(command);
+                CommandExec(command);
             }
             while (command is not Command.Exit);
         }
@@ -50,25 +48,13 @@ namespace P2PShare.Server
             return input.Length > 1 && Enum.TryParse<Command>($"{input.Substring(0, 1).ToUpper()}{input.Substring(1).ToLower()}", out command) ? command : null;
         }
 
-        private static async Task CommandExecAsync(Command? command)
+        private static void CommandExec(Command? command)
         {
             switch (command)
             {
                 case Command.Start:
                     // Start server logic here
 
-                    //testing
-                    try
-                    {
-                        await DatabaseContext.InitAsync(new CancellationTokenSource().Token);
-                        await DatabaseContext.AddUserAsync("nejakuusername", "hash123", "Matej", "Kujnisch");
-
-                        DisplayCommandOutput("success");
-                    }
-                    catch (Exception ex)
-                    {
-                        DisplayCommandOutput(ex.Message);
-                    }
                     break;
                 case Command.Stop:
                     // Stop server logic here
@@ -104,14 +90,16 @@ namespace P2PShare.Server
 
         private static void DisplayHeader()
         {
+            var running = _server is not null && _server.Status == TaskStatus.Running;
+
             ChangeConsoleColor(ConsoleColor.Gray);
             Console.WriteLine(_fullHelpSuggestionText);
 
             // status servera
             ChangeConsoleColor(ConsoleColor.White);
             Console.Write("Server: ");
-            ChangeConsoleColor(_running ? ConsoleColor.Green : ConsoleColor.Red);
-            Console.WriteLine(_running ? "Running" : "Not running");
+            ChangeConsoleColor(running ? ConsoleColor.Green : ConsoleColor.Red);
+            Console.WriteLine(running ? "Running" : "Not running");
 
             // koniec headeru
             ChangeConsoleColor(ConsoleColor.White);
