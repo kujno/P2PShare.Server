@@ -11,4 +11,8 @@
     <PackageReference Include="MySql.Data" Version="9.6.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\P2PShare\P2PShare.Libs\P2PShare.Libs.csproj" />
+  </ItemGroup>
+
 </Project>
