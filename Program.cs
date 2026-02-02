@@ -3,6 +3,7 @@
     class Program
     {
         private static Task? _server;
+        private static CancellationTokenSource? _cancellationTokenSource;
 
         private static readonly string _helpSuggestionText = $"Use \"{Command.Help.ToString().ToLower()}\" command to display the list of all of the commands", _fullHelpSuggestionText = $"--- {_helpSuggestionText} ---";
         private static readonly Dictionary<Command, string> _commandDescriptions = new()
@@ -105,6 +106,11 @@
             ChangeConsoleColor(ConsoleColor.White);
             for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
             for (int i = 0; i < 2; i++) Console.WriteLine();
+        }
+
+        private static async Task StartServerAsync()
+        {
+            // this will handle the creation and management of the ConnectionServer instances
         }
     }
 }
