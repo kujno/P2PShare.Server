@@ -1,18 +1,29 @@
 ﻿using P2PShare.Libs;
-using System.Net;
 
 namespace P2PShare.Server.ConnectionServer
 {
-    public class ConnectionServerHandler(CancellationToken cancellationToken) : ConnectionHandler(IPAddress.Any, cancellationToken)
+    public class ConnectionServerHandler : ConnectionHandler
     {
-        public string RemoteIP { get => _ipRemote?.ToString() ?? "No remote IP"; }
-        
+        private int _port;
+
         public async Task WaitForConnectionAsync()
         {
-            // just initialize connection
-            // when finished, it will return to the ConnectionServer class
-            // which will return to Server class
-            // that will call the ServerConnection.Run() method and crete another ConnectionServer object and call this method again
+            using (Client = await ReceiveTcpClientAsync(_initialServerPort))
+            {
+                await ReceiveEncryptionKeyAsync();
+                _port = await SendPortAsync(true);
+            }
+        }
+
+        public async Task<bool> AuthOnNewPortAsync()
+        {
+            byte[] buffer = new byte[_modulusLength * 3];
+            
+            Client = await ReceiveTcpClientAsync(_port);
+
+            await _netStream!.ReadExactlyAsync(buffer, CancellationToken);
+
+            // hashing and db querying here
         }
     }
 }

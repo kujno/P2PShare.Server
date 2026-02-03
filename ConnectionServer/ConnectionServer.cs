@@ -1,10 +1,23 @@
 ﻿using P2PShare.Server.Models;
+using System.Net;
 
 namespace P2PShare.Server.ConnectionServer
 {
-    public class ConnectionServer(CancellationToken cancellationToken) : IDisposable
+    public class ConnectionServer : IDisposable
     {
-        private ConnectionServerHandler _connectionHandler = new(cancellationToken);
+        public required CancellationToken CancellationToken { get; init; }
+
+        private ConnectionServerHandler _connectionHandler;
+
+        public ConnectionServer()
+        {
+            _connectionHandler = new()
+            {
+                CancellationToken = CancellationToken,
+                IPLocal = IPAddress.Any
+            };
+        }
+
         private Task? _communication;
 
         public static event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
@@ -24,7 +37,7 @@ namespace P2PShare.Server.ConnectionServer
             // this will handle the client requests
             try
             {
-                while (!cancellationToken.IsCancellationRequested)
+                while (!CancellationToken.IsCancellationRequested)
                 {
 
                 }
@@ -34,9 +47,10 @@ namespace P2PShare.Server.ConnectionServer
                 IsDone = true;
                 if (ex is OperationCanceledException) return;
 
-                OnConnectionError(new() 
-                { ErrorMessage = ex.Message,
-                    RemoteIP = _connectionHandler.RemoteIP, 
+                OnConnectionError(new()
+                {
+                    ErrorMessage = ex.Message,
+                    RemoteIP = _connectionHandler.IPRemote?.ToString() ?? "No remote IP",
                     DateTime = DateTime.Now
                 });
             }

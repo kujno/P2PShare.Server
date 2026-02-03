@@ -1,4 +1,5 @@
-﻿using P2PShare.Server.Models;
+﻿using P2PShare.Server.DatabaseAccess;
+using P2PShare.Server.Models;
 
 namespace P2PShare.Server
 {
@@ -28,7 +29,7 @@ namespace P2PShare.Server
             {
                 command = await CommandGet();
 
-                CommandExec(command);
+                await CommandExecAsync(command);
             }
             while (command is not Command.Exit);
         }
@@ -51,7 +52,7 @@ namespace P2PShare.Server
             return input.Length > 1 && Enum.TryParse<Command>($"{input.Substring(0, 1).ToUpper()}{input.Substring(1).ToLower()}", out command) ? command : null;
         }
 
-        private static void CommandExec(Command? command)
+        private static async Task CommandExecAsync(Command? command)
         {
             switch (command)
             {
@@ -60,7 +61,13 @@ namespace P2PShare.Server
 
                     break;
                 case Command.Stop:
-                    // Stop server logic here
+                    _cancellationTokenSource?.Cancel();
+
+                    // wait for server to stop
+                    await _server!;
+
+                    DisplayCommandOutput("Server stopped.");
+
                     break;
                 case Command.Help:
                     string output = String.Empty;
@@ -113,17 +120,36 @@ namespace P2PShare.Server
         private static async Task StartServerAsync()
         {
             List<ConnectionServer.ConnectionServer> connections = new();
-            
+
+            _cancellationTokenSource = new();
+            await DatabaseContext.InitAsync(_cancellationTokenSource.Token);
+
             while (!_cancellationTokenSource!.IsCancellationRequested)
             {
-                ConnectionServer.ConnectionServer connection = new(_cancellationTokenSource!.Token);
+                ConnectionServer.ConnectionServer connection = new()
+                {
+                    CancellationToken = _cancellationTokenSource.Token
+                };
+                ConnectionServer.ConnectionServer[] doneConnections;
 
                 await connection.InitAsync();
                 connection.Serve();
 
                 connections.Add(connection);
 
-                connections.RemoveAll(x => x.IsDone);
+                doneConnections = connections.Where(x => x.IsDone).ToArray();
+                foreach (var doneConnection in doneConnections)
+                {
+                    try
+                    {
+                        doneConnection.Dispose();
+                    }
+                    catch
+                    {
+                    }
+
+                    connections.Remove(doneConnection);
+                }
             }
         }
     }
