@@ -5,6 +5,8 @@ namespace P2PShare.Server.ConnectionServer
 {
     public class ConnectionServerHandler(CancellationToken cancellationToken) : ConnectionHandler(IPAddress.Any, cancellationToken)
     {
+        public string RemoteIP { get => _ipRemote?.ToString() ?? "No remote IP"; }
+        
         public async Task WaitForConnectionAsync()
         {
             // just initialize connection
