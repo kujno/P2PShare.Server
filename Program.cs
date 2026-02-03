@@ -1,4 +1,6 @@
-﻿namespace P2PShare.Server
+﻿using P2PShare.Server.Models;
+
+namespace P2PShare.Server
 {
     class Program
     {
@@ -110,7 +112,19 @@
 
         private static async Task StartServerAsync()
         {
-            // this will handle the creation and management of the ConnectionServer instances
+            List<ConnectionServer.ConnectionServer> connections = new();
+            
+            while (!_cancellationTokenSource!.IsCancellationRequested)
+            {
+                ConnectionServer.ConnectionServer connection = new(_cancellationTokenSource!.Token);
+
+                await connection.InitAsync();
+                connection.Serve();
+
+                connections.Add(connection);
+
+                connections.RemoveAll(x => x.IsDone);
+            }
         }
     }
 }
