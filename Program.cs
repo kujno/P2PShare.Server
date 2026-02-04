@@ -57,7 +57,9 @@ namespace P2PShare.Server
             switch (command)
             {
                 case Command.Start:
-                    // Start server logic here
+                    _server = StartServerAsync();
+
+                    DisplayCommandOutput("Server started.");
 
                     break;
                 case Command.Stop:
