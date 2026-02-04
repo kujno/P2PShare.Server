@@ -50,7 +50,7 @@ namespace P2PShare.Server.ConnectionServer
                 OnConnectionError(new()
                 {
                     ErrorMessage = ex.Message,
-                    RemoteIP = _connectionHandler.IPRemote?.ToString() ?? "No remote IP",
+                    RemoteIP = _connectionHandler.IPRemote,
                     DateTime = DateTime.Now
                 });
             }

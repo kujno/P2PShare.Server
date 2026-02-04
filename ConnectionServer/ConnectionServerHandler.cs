@@ -6,6 +6,8 @@ namespace P2PShare.Server.ConnectionServer
     {
         private int _port;
 
+        public string IPRemote { get => _ipRemote?.ToString() ?? "No remote IP"; }
+
         public async Task WaitForConnectionAsync()
         {
             using (Client = await ReceiveTcpClientAsync(_initialServerPort))
