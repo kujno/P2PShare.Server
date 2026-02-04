@@ -19,13 +19,11 @@ namespace P2PShare.Server.ConnectionServer
 
         public async Task<bool> AuthOnNewPortAsync()
         {
-            byte[] buffer = new byte[_modulusLength * 3];
+            var request = new byte[3];
             
             Client = await ReceiveTcpClientAsync(_port);
 
-            await _netStream!.ReadExactlyAsync(buffer, CancellationToken);
-
-            // hashing and db querying here
+            // get request and proccess
         }
     }
 }
