@@ -1,4 +1,5 @@
 ﻿using MySql.Data.MySqlClient;
+using P2PShare.Libs;
 
 namespace P2PShare.Server.DatabaseAccess
 {
@@ -23,6 +24,28 @@ namespace P2PShare.Server.DatabaseAccess
                 using (MySqlCommand command = new($"insert into users (username, password_hash, name, surename) values (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");", connection))
                 {
                     await command.ExecuteNonQueryAsync(_cancellationToken);
+                }
+            }
+        }
+
+        public static async Task<string> GetUsernamesAsync()
+        {
+            using (MySqlConnection connection = new(_connectionString))
+            {
+                connection.Open();
+
+                using (MySqlCommand command = new("select username from users;", connection))
+                {
+                    using (var reader = await command.ExecuteReaderAsync(_cancellationToken))
+                    {
+                        using (var textReader = reader.GetTextReader(0))
+                        {
+                            var buffer = new char[ConnectionHandler.BufferSize];
+                            var read = await textReader.ReadAsync(buffer, _cancellationToken);
+
+                            return new string(buffer, 0, read);
+                        }
+                    }
                 }
             }
         }
