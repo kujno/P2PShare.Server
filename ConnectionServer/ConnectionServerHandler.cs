@@ -38,8 +38,7 @@ namespace P2PShare.Server.ConnectionServer
 
                 if (Enum.Parse<Tag>(request[0]) is Tag.Register)
                 {
-                    // find if the username doesn't exist already
-                    // if not register
+                    var usernames
                 }
                 else
                 {
