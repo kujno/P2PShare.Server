@@ -34,12 +34,14 @@ namespace P2PShare.Server.ConnectionServer
 
         private async Task ServeLoopAsync()
         {
-            // this will handle the client requests
             try
             {
+                await _connectionHandler.AuthOnNewPortAsync();
+                // send authorized info
+
                 while (!CancellationToken.IsCancellationRequested)
                 {
-
+                    // handle requests
                 }
             }
             catch (Exception ex)
