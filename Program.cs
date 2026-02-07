@@ -86,7 +86,7 @@ namespace P2PShare.Server
                 case Command.Stop:
                     _cancellationTokenSource?.Cancel();
 
-                    // wait for server to stop
+                    // Čakanie, kým server skončí.
                     await _server!;
 
                     DisplayCommandOutput("Server stopped.");
@@ -100,7 +100,7 @@ namespace P2PShare.Server
                     DisplayCommandOutput(output.Trim());
                     break;
                 case Command.Exit:
-                    // nothing to do here
+                    // Tu netreba nič.
                     break;
 
                 default:
@@ -141,13 +141,13 @@ namespace P2PShare.Server
             ChangeConsoleColor(ConsoleColor.Gray);
             Console.WriteLine(_fullHelpSuggestionText);
 
-            // status servera
+            // Status servera.
             ChangeConsoleColor(ConsoleColor.White);
             Console.Write("Server: ");
             ChangeConsoleColor(running ? ConsoleColor.Green : ConsoleColor.Red);
             Console.WriteLine(running ? "Running" : "Not running");
 
-            // koniec headeru
+            // Koniec hlavičky.
             ChangeConsoleColor(ConsoleColor.White);
             for (int i = 0; i < _fullHelpSuggestionText.Length; i++) Console.Write('-');
             for (int i = 0; i < 2; i++) Console.WriteLine();
