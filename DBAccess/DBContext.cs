@@ -1,6 +1,6 @@
 ﻿using MySql.Data.MySqlClient;
 
-namespace P2PShare.Server.DatabaseAccess
+namespace P2PShare.Server.DBAccess
 {
     public static class DBContext
     {

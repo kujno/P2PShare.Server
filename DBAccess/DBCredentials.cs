@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Text;
 
-namespace P2PShare.Server.DatabaseAccess
+namespace P2PShare.Server.DBAccess
 {
     public class DBCredentials
     {
