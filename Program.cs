@@ -1,4 +1,4 @@
-﻿using P2PShare.Server.DatabaseAccess;
+﻿using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 
 namespace P2PShare.Server
@@ -25,6 +25,8 @@ namespace P2PShare.Server
 
             DisplayHeader();
 
+            if (!File.Exists(DBCredentials.DBCredentialsFileName)) await DBCredentials.SaveToFileAsync(GetString("Enter database server"), GetString("Enter database name"), GetString("Enter database user ID"), GetString("Enter database password"));
+
             do
             {
                 command = await CommandGet();
@@ -32,6 +34,25 @@ namespace P2PShare.Server
                 await CommandExecAsync(command);
             }
             while (command is not Command.Exit);
+        }
+
+        private static string GetString(string message)
+        {
+            string? input = null;
+
+            for (var i = false; String.IsNullOrEmpty(input); i = true)
+            {
+                if (i) DisplayCommandOutput("Input can't be empty!", ConsoleColor.Red);
+
+                ChangeConsoleColor(ConsoleColor.White);
+                Console.Write($"{message}: ");
+                ChangeConsoleColor(ConsoleColor.Yellow);
+                input = Console.ReadLine()?.Trim() ?? String.Empty;
+            }
+
+            DisplayHeader();
+
+            return input;
         }
 
         private static async Task<Command?> CommandGet()
@@ -92,8 +113,6 @@ namespace P2PShare.Server
 
         private static void DisplayCommandOutput(string output, ConsoleColor color)
         {
-            Console.Clear();
-
             DisplayHeader();
 
             ChangeConsoleColor(color);
@@ -102,7 +121,22 @@ namespace P2PShare.Server
 
         private static void DisplayHeader()
         {
-            var running = _server is not null && _server.Status == TaskStatus.Running;
+            bool running = _server is not null;
+
+            if (running)
+            {
+                Array.ForEach(new TaskStatus[]
+                {
+                    TaskStatus.Faulted,
+                    TaskStatus.Canceled,
+                    TaskStatus.RanToCompletion
+                }, x =>
+                {
+                    if (_server?.Status == x) running = false;
+                });
+            }
+
+            Console.Clear();
 
             ChangeConsoleColor(ConsoleColor.Gray);
             Console.WriteLine(_fullHelpSuggestionText);
@@ -124,7 +158,7 @@ namespace P2PShare.Server
             List<ConnectionServer.ConnectionServer> connections = new();
 
             _cancellationTokenSource = new();
-            await DatabaseContext.InitAsync(_cancellationTokenSource.Token);
+            await DBContext.InitAsync(_cancellationTokenSource.Token);
 
             while (!_cancellationTokenSource!.IsCancellationRequested)
             {
