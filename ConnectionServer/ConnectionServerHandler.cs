@@ -1,11 +1,13 @@
 ﻿using P2PShare.Libs;
 using P2PShare.Libs.Models;
+using P2PShare.Server.DBAccess;
 
 namespace P2PShare.Server.ConnectionServer
 {
     public class ConnectionServerHandler : ConnectionHandler
     {
         private int _port;
+        private string? _username;
 
         public string IPRemote { get => _ipRemote?.ToString() ?? "No remote IP"; }
 
@@ -18,34 +20,47 @@ namespace P2PShare.Server.ConnectionServer
             }
         }
 
-        public async Task<bool> AuthOnNewPortAsync()
+        public async Task AuthOnNewPortAsync()
         {
-            var request = new string[3];
-            string requestString;
+            Request request;
+            bool auth = false;
 
             Client = await ReceiveTcpClientAsync(_port);
 
             do
             {
-                requestString = await ReceiveRequestAsync(true);
-                for (int i = 0; i < request.Length - 1; i++)
-                {
-                    var index = requestString.IndexOf(InviteSeparator);
-                    request[i] = requestString.Substring(0, index);
-                    requestString = requestString.Substring(index + 1);
-                }
-                request[2] = requestString;
+                request = Request.Create(await ReceiveRequestAsync(true));
+                bool response = false;
 
-                if (Enum.Parse<Tag>(request[0]) is Tag.Register)
+                switch (request.Tag)
                 {
-                    var usernames
+                    case Tag.Register:
+                        if ((await DBContext.GetUsernamesAsync()).Where(x => x == request.Username).ToArray().Length == 0)
+                        {
+                            await DBContext.AddUserAsync(request.Username!, Hasher.Hash(request.Password!), request.Name!, request.Surename!);
+
+                            response = true;
+                        }
+
+                        break;
+
+                    case Tag.Login:
+                        var dbHash = await DBContext.GetPasswordHashAsync(request.Username!);
+
+                        if (dbHash is not null)
+                            response = Hasher.Verify(request.Password!, dbHash);
+                        auth = response;
+
+                        break;
+                    default:
+                        throw new Exception("Invalid tag received during authentication.");
                 }
-                else
-                {
-                    // login logic
-                }
+
+                await YNSendAsync(true, response);
             }
-            while ();
+            while (!auth);
+
+            _username = request.Username;
         }
     }
 }
