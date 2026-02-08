@@ -26,11 +26,25 @@ namespace P2PShare.Server.ConnectionServer
 
         public void Dispose() => _connectionHandler.Dispose();
 
-        private void OnConnectionError(ConnectionErrorEventArgs e) => ConnectionError?.Invoke(this, e);
-
         public void Serve() => _communication = ServeLoopAsync();
 
-        public async Task InitAsync() => await _connectionHandler.WaitForConnectionAsync();
+        public async Task InitAsync()
+        {
+            try
+            {
+                await _connectionHandler.WaitForConnectionAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                IsDone = true;
+            }
+            catch (Exception ex)
+            {
+                IsDone = true;
+
+                OnConnectionError(ex);
+            }
+        }
 
         private async Task ServeLoopAsync()
         {
@@ -44,18 +58,25 @@ namespace P2PShare.Server.ConnectionServer
                     // handle requests
                 }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                IsDone = true;
-                if (ex is OperationCanceledException) return;
-
-                OnConnectionError(new()
-                {
-                    ErrorMessage = ex.Message,
-                    RemoteIP = _connectionHandler.IPRemote,
-                    DateTime = DateTime.Now
-                });
+                OnConnectionError(ex);
             }
+            finally
+            {
+                IsDone = true;
+            }
+        }
+
+        private void OnConnectionError(Exception ex)
+        {
+            ConnectionError?.Invoke(this, new()
+            {
+                ErrorMessage = ex.Message,
+                RemoteIP = _connectionHandler.IPRemote,
+                DateTime = DateTime.Now
+            });
         }
     }
 }
