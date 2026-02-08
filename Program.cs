@@ -155,38 +155,55 @@ namespace P2PShare.Server
 
         private static async Task StartServerAsync()
         {
-            List<ConnectionServer.ConnectionServer> connections = new();
+            List<ConnectionServer.ConnectionServer> connections = [];
 
             _cancellationTokenSource = new();
-            await DBContext.InitAsync(_cancellationTokenSource.Token);
-
-            while (!_cancellationTokenSource!.IsCancellationRequested)
+            try
             {
-                ConnectionServer.ConnectionServer connection = new()
+                await DBContext.InitAsync(_cancellationTokenSource.Token);
+
+                while (!_cancellationTokenSource!.IsCancellationRequested)
                 {
-                    CancellationToken = _cancellationTokenSource.Token
-                };
-                ConnectionServer.ConnectionServer[] doneConnections;
-
-                await connection.InitAsync();
-                connection.Serve();
-
-                connections.Add(connection);
-
-                doneConnections = connections.Where(x => x.IsDone).ToArray();
-                foreach (var doneConnection in doneConnections)
-                {
-                    try
+                    ConnectionServer.ConnectionServer connection = new()
                     {
-                        doneConnection.Dispose();
-                    }
-                    catch
-                    {
-                    }
+                        CancellationToken = _cancellationTokenSource.Token
+                    };
+                    ConnectionServer.ConnectionServer[] doneConnections;
 
-                    connections.Remove(doneConnection);
+                    await connection.InitAsync();
+                    if (!connection.IsDone) connection.Serve();
+
+                    connections.Add(connection);
+
+                    doneConnections = connections.Where(x => x.IsDone).ToArray();
+                    foreach (var doneConnection in doneConnections)
+                    {
+                        try
+                        {
+                            doneConnection.Dispose();
+                        }
+                        catch { }
+
+                        connections.Remove(doneConnection);
+                    }
                 }
             }
+            catch (OperationCanceledException) { }
+            catch
+            {
+                _ = Task.Run(DisplayError);
+            }
+        }
+
+        private static async Task DisplayError()
+        {
+            try
+            {
+                await _server!;
+            }
+            catch { }
+
+            DisplayCommandOutput("Server failed.", ConsoleColor.Red);
         }
     }
 }
