@@ -1,6 +1,7 @@
 ﻿using P2PShare.Libs;
 using P2PShare.Libs.Models;
 using P2PShare.Server.DBAccess;
+using System.Text;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -10,6 +11,8 @@ namespace P2PShare.Server.ConnectionServer
         private string? _username;
 
         public string IPRemote { get => _ipRemote?.ToString() ?? "No remote IP"; }
+
+        public async Task SendUserFilesAsync(string content) => await _netStream!.WriteAsync(_encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(content)), CancellationToken);
 
         public async Task WaitForConnectionAsync()
         {
@@ -38,6 +41,8 @@ namespace P2PShare.Server.ConnectionServer
                         if ((await DBContext.GetUsernamesAsync()).Where(x => x == request.Username).ToArray().Length == 0)
                         {
                             await DBContext.AddUserAsync(request.Username!, Hasher.Hash(request.Password!), request.Name!, request.Surename!);
+
+                            // create user dir here
 
                             response = true;
                         }
