@@ -25,7 +25,20 @@ namespace P2PShare.Server
 
             DisplayHeader();
 
-            if (!File.Exists(DBCredentials.DBCredentialsFileName)) await DBCredentials.SaveToFileAsync(GetString("Enter database server"), GetString("Enter database name"), GetString("Enter database user ID"), GetString("Enter database password"));
+            if (!File.Exists(AppSettings.AppSettingsFileName))
+            {
+                await new AppSettings()
+                {
+                    RootFolderPath = GetString("Enter root folder path"),
+                    DBCredentials = new DBCredentials()
+                    {
+                        Server = GetString("Enter database server"),
+                        Database = GetString("Enter database name"),
+                        UserID = GetString("Enter database user ID"),
+                        Password = GetString("Enter database password")
+                    }
+                }.SaveToFileAsync();
+            }
 
             do
             {
@@ -84,12 +97,20 @@ namespace P2PShare.Server
 
                     break;
                 case Command.Stop:
+                    string message;
+                    
                     _cancellationTokenSource?.Cancel();
 
-                    // Čakanie, kým server skončí.
-                    await _server!;
+                    if (IsServerRunning())
+                    {
+                        // Čakanie, kým server skončí.
+                        await _server!;
 
-                    DisplayCommandOutput("Server stopped.");
+                        message = "Server stopped.";
+                    }
+                    else message = "Server is not running.";
+
+                    DisplayCommandOutput(message);
 
                     break;
                 case Command.Help:
@@ -121,20 +142,7 @@ namespace P2PShare.Server
 
         private static void DisplayHeader()
         {
-            bool running = _server is not null;
-
-            if (running)
-            {
-                Array.ForEach(new TaskStatus[]
-                {
-                    TaskStatus.Faulted,
-                    TaskStatus.Canceled,
-                    TaskStatus.RanToCompletion
-                }, x =>
-                {
-                    if (_server?.Status == x) running = false;
-                });
-            }
+            var running = IsServerRunning();
 
             Console.Clear();
 
@@ -160,14 +168,11 @@ namespace P2PShare.Server
             _cancellationTokenSource = new();
             try
             {
-                await DBContext.InitAsync(_cancellationTokenSource.Token);
+                await DBContext.InitAsync((await AppSettings.GetAsync(_cancellationTokenSource.Token)).DBCredentials, _cancellationTokenSource.Token);
 
                 while (!_cancellationTokenSource!.IsCancellationRequested)
                 {
-                    ConnectionServer.ConnectionServer connection = new()
-                    {
-                        CancellationToken = _cancellationTokenSource.Token
-                    };
+                    ConnectionServer.ConnectionServer connection = new(_cancellationTokenSource.Token);
                     ConnectionServer.ConnectionServer[] doneConnections;
 
                     await connection.InitAsync();
@@ -193,6 +198,11 @@ namespace P2PShare.Server
             {
                 _ = Task.Run(DisplayError);
             }
+            finally
+            {
+                _cancellationTokenSource.Dispose();
+                _cancellationTokenSource = null;
+            }
         }
 
         private static async Task DisplayError()
@@ -204,6 +214,26 @@ namespace P2PShare.Server
             catch { }
 
             DisplayCommandOutput("Server failed.", ConsoleColor.Red);
+        }
+
+        private static bool IsServerRunning()
+        {
+            bool running = _server is not null;
+
+            if (running)
+            {
+                Array.ForEach(new TaskStatus[]
+                {
+                    TaskStatus.Faulted,
+                    TaskStatus.Canceled,
+                    TaskStatus.RanToCompletion
+                }, x =>
+                {
+                    if (_server?.Status == x) running = false;
+                });
+            }
+
+            return running;
         }
     }
 }

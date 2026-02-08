@@ -1,19 +1,20 @@
-﻿using P2PShare.Server.Models;
+﻿using P2PShare.Libs.Models.FileSytem;
+using P2PShare.Server.Models;
 using System.Net;
 
 namespace P2PShare.Server.ConnectionServer
 {
     public class ConnectionServer : IDisposable
     {
-        public required CancellationToken CancellationToken { get; init; }
+        private readonly CancellationToken _cancellationToken;
+        private readonly ConnectionServerHandler _connectionHandler;
 
-        private ConnectionServerHandler _connectionHandler;
-
-        public ConnectionServer()
+        public ConnectionServer(CancellationToken cancellationToken)
         {
+            _cancellationToken = cancellationToken;
             _connectionHandler = new()
             {
-                CancellationToken = CancellationToken,
+                CancellationToken = _cancellationToken,
                 IPLocal = IPAddress.Any
             };
         }
@@ -51,9 +52,9 @@ namespace P2PShare.Server.ConnectionServer
             try
             {
                 await _connectionHandler.AuthOnNewPortAsync();
-                // send authorized info
+                //await _connectionHandler.SendUserFilesAsync(new UserFiles());
 
-                while (!CancellationToken.IsCancellationRequested)
+                while (!_cancellationToken.IsCancellationRequested)
                 {
                     // handle requests
                 }

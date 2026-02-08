@@ -7,12 +7,9 @@ namespace P2PShare.Server.DBAccess
         private static CancellationToken _cancellationToken;
         private static string? _connectionString;
 
-        public static async Task InitAsync(CancellationToken cancellationToken)
+        public static async Task InitAsync(DBCredentials credentials, CancellationToken cancellationToken)
         {
-            DBCredentials credentials;
-
             _cancellationToken = cancellationToken;
-            credentials = await DBCredentials.GetAsync(cancellationToken);
             _connectionString = $"Server={credentials.Server};Database={credentials.Database};User ID={credentials.UserID};Password={credentials.Password};";
         }
 
