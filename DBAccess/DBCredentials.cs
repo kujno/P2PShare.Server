@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using P2PShare.Libs.Models;
 using System.Text;
 
 namespace P2PShare.Server.DBAccess
@@ -19,7 +20,7 @@ namespace P2PShare.Server.DBAccess
             try
             {
                 var json = await File.ReadAllTextAsync(DBCredentialsFileName, cancellationToken);
-                credentials = JsonConvert.DeserializeObject<DBCredentials>(json)!;
+                credentials = JsonConvert.DeserializeObject<DBCredentials>(json, SerializationSettings.Settings)!;
             }
             catch (Exception ex)
             {
@@ -40,7 +41,7 @@ namespace P2PShare.Server.DBAccess
                     Database = database,
                     UserID = userID,
                     Password = password
-                })));
+                }, SerializationSettings.Settings)));
         }
     }
 }
