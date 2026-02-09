@@ -1,5 +1,5 @@
 ﻿using P2PShare.Libs;
-using P2PShare.Libs.Models;
+using P2PShare.Libs.Models.Requests;
 using P2PShare.Server.DBAccess;
 using System.Text;
 
