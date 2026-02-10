@@ -13,13 +13,22 @@ namespace P2PShare.Server.DBAccess
             _connectionString = $"Server={credentials.Server};Database={credentials.Database};User ID={credentials.UserID};Password={credentials.Password};";
         }
 
-        public static async Task AddUserAsync(string username, string hash, string name, string surename) => await ExecCommand($"insert into users (username, password_hash, name, surename) values (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");", false);
+        public static async Task AddUserAsync(string username, string hash, string name, string surename)
+        {
+            await ExecNonQueryAsync(new string[]
+            {
+                $"INSERT INTO users (username, password_hash, name, surename) VALUES (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");",
+                $"INSERT INTO usergroups (name, isuser) VALUES (\"{username}\", 1)"
+            });
+
+            // add to the many to many table
+        }
 
         public static async Task<string[]> GetUsernamesAsync()
         {
             List<string> usernames = new();
 
-            using (MySqlDataReader reader = (await ExecCommand("select username from users;", true))!)
+            using (MySqlDataReader reader = await ExecQueryAsync("SELECT username FROM users;"))
             {
                 while (await reader.ReadAsync(_cancellationToken))
                     usernames.Add(reader.GetString("username"));
@@ -30,7 +39,7 @@ namespace P2PShare.Server.DBAccess
 
         public static async Task<string?> GetPasswordHashAsync(string username)
         {
-            using (MySqlDataReader reader = (await ExecCommand($"select password_hash from users where username = \"{username}\";", true))!)
+            using (MySqlDataReader reader = await ExecQueryAsync($"SELECT password_hash FROM users WHERE username = \"{username}\";"))
             {
                 if (await reader.ReadAsync(_cancellationToken))
                     return reader.GetString("password_hash");
@@ -39,19 +48,42 @@ namespace P2PShare.Server.DBAccess
             return null;
         }
 
-        private static async Task<MySqlDataReader?> ExecCommand(string commandString, bool query)
+        private static async Task<MySqlDataReader> ExecQueryAsync(string query)
         {
+
             using (MySqlConnection connection = new(_connectionString))
             {
                 connection.Open();
 
-                using (MySqlCommand command = new(commandString, connection))
+                using (MySqlCommand command = new(query, connection))
                 {
-                    if (query)
-                        return (MySqlDataReader)await command.ExecuteReaderAsync();
+                    return (MySqlDataReader)await command.ExecuteReaderAsync();
+                }
+            }
+        }
 
-                    await command.ExecuteNonQueryAsync(_cancellationToken);
-                    return null;
+        private static async Task ExecNonQueryAsync<T>(T commands)
+        {
+            var tType = typeof(T);
+            var isTString = tType == typeof(string);
+            var isTArray = tType == typeof(string[]);
+            string[]? commandsArr = null;
+            string? commandStr = null;
+
+            if (isTArray) commandsArr = (string[])(object)commands!;
+            else if (isTString) commandStr = (string)(object)commands!;
+            else throw new NotImplementedException($"Method ExecCommand doesn't have implementation for T of type {tType}");
+
+            using (MySqlConnection connection = new(_connectionString))
+            {
+                connection.Open();
+
+                for (var i = 0; i == 0 || (isTArray && i < commandsArr!.Length); i++)
+                {
+                    using (MySqlCommand command = new(isTString ? commandStr : commandsArr![i], connection))
+                    {
+                        await command.ExecuteNonQueryAsync(_cancellationToken);
+                    }
                 }
             }
         }
