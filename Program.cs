@@ -168,11 +168,13 @@ namespace P2PShare.Server
             _cancellationTokenSource = new();
             try
             {
-                await DBContext.InitAsync((await AppSettings.GetAsync(_cancellationTokenSource.Token)).DBCredentials, _cancellationTokenSource.Token);
+                var appSettings = await AppSettings.GetAsync(_cancellationTokenSource.Token);
+
+                await DBContext.InitAsync(appSettings.DBCredentials, _cancellationTokenSource.Token);
 
                 while (!_cancellationTokenSource!.IsCancellationRequested)
                 {
-                    ConnectionServer.ConnectionServer connection = new(_cancellationTokenSource.Token);
+                    ConnectionServer.ConnectionServer connection = new(appSettings, _cancellationTokenSource.Token);
                     ConnectionServer.ConnectionServer[] doneConnections;
 
                     await connection.InitAsync();

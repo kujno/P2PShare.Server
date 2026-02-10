@@ -12,6 +12,8 @@ namespace P2PShare.Server.ConnectionServer
 
         public string IPRemote { get => _ipRemote?.ToString() ?? "No remote IP"; }
 
+        public required AppSettings AppSettings { get; init; }
+
         public async Task SendUserFilesAsync(string content) => await _netStream!.WriteAsync(_encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(content)), CancellationToken);
 
         public async Task WaitForConnectionAsync()
@@ -42,7 +44,7 @@ namespace P2PShare.Server.ConnectionServer
                         {
                             await DBContext.AddUserAsync(request.Username!, Hasher.Hash(request.Password!), request.Name!, request.Surename!);
 
-                            // create user dir here
+                            Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\{request.Username}");
 
                             response = true;
                         }

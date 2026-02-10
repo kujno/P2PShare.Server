@@ -9,13 +9,14 @@ namespace P2PShare.Server.ConnectionServer
         private readonly CancellationToken _cancellationToken;
         private readonly ConnectionServerHandler _connectionHandler;
 
-        public ConnectionServer(CancellationToken cancellationToken)
+        public ConnectionServer(AppSettings appSettings, CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
             _connectionHandler = new()
             {
                 CancellationToken = _cancellationToken,
-                IPLocal = IPAddress.Any
+                IPLocal = IPAddress.Any,
+                AppSettings = appSettings
             };
         }
 
@@ -52,7 +53,7 @@ namespace P2PShare.Server.ConnectionServer
             try
             {
                 await _connectionHandler.AuthOnNewPortAsync();
-                //await _connectionHandler.SendUserFilesAsync(new UserFiles());
+                await _connectionHandler.SendUserFilesAsync(new UserFiles());
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
