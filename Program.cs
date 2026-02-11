@@ -22,31 +22,46 @@ namespace P2PShare.Server
         static async Task Main()
         {
             Command? command;
+            AppSettings appSettings;
 
             DisplayHeader();
 
-            if (!File.Exists(AppSettings.AppSettingsFileName))
+            try
             {
-                await new AppSettings()
+                if (!File.Exists(AppSettings.AppSettingsFileName))
                 {
-                    RootFolderPath = GetString("Enter root folder path"),
-                    DBCredentials = new DBCredentials()
+                    appSettings = new AppSettings()
                     {
-                        Server = GetString("Enter database server"),
-                        Database = GetString("Enter database name"),
-                        UserID = GetString("Enter database user ID"),
-                        Password = GetString("Enter database password")
-                    }
-                }.SaveToFileAsync();
-            }
+                        RootFolderPath = GetString("Enter root folder path"),
+                        DBCredentials = new DBCredentials()
+                        {
+                            Server = GetString("Enter database server"),
+                            Database = GetString("Enter database name"),
+                            UserID = GetString("Enter database user ID"),
+                            Password = GetString("Enter database password")
+                        }
+                    };
 
-            do
+                    await appSettings.SaveToFileAsync();
+                }
+                else appSettings = await AppSettings.GetAsync(CancellationToken.None);
+
+                Directory.CreateDirectory($"{appSettings.RootFolderPath}\\temp");
+
+                do
+                {
+                    command = await CommandGet();
+
+                    await CommandExecAsync(command);
+                }
+                while (command is not Command.Exit);
+            }
+            catch
             {
-                command = await CommandGet();
+                DisplayCommandOutput("Server failed. Press any key to exit!");
 
-                await CommandExecAsync(command);
+                Console.ReadKey();
             }
-            while (command is not Command.Exit);
         }
 
         private static string GetString(string message)
@@ -98,7 +113,7 @@ namespace P2PShare.Server
                     break;
                 case Command.Stop:
                     string message;
-                    
+
                     _cancellationTokenSource?.Cancel();
 
                     if (IsServerRunning())
