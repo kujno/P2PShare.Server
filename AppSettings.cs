@@ -12,23 +12,6 @@ namespace P2PShare.Server
 
         public async Task SaveToFileAsync() => await File.WriteAllTextAsync(AppSettingsFileName, JsonConvert.SerializeObject(this, Formatting.Indented));
 
-        public static async Task<AppSettings> GetAsync(CancellationToken cancellationToken)
-        {
-            AppSettings appSettings;
-
-            try
-            {
-                var json = await File.ReadAllTextAsync(AppSettingsFileName, cancellationToken);
-                appSettings = JsonConvert.DeserializeObject<AppSettings>(json)!;
-            }
-            catch (Exception ex)
-            {
-                throw ex is OperationCanceledException ?
-                    ex :
-                    new FormatException($"Failed to convert {AppSettingsFileName}.", ex);
-            }
-
-            return appSettings;
-        }
+        public static async Task<AppSettings> GetAsync(CancellationToken cancellationToken) => JsonConvert.DeserializeObject<AppSettings>(await File.ReadAllTextAsync(AppSettingsFileName, cancellationToken))!;
     }
 }
