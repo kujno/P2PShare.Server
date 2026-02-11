@@ -1,4 +1,5 @@
 ﻿using MySql.Data.MySqlClient;
+using System.Data;
 
 namespace P2PShare.Server.DBAccess
 {
@@ -24,72 +25,31 @@ namespace P2PShare.Server.DBAccess
                 $"INSERT INTO usergroups (name, isuser) VALUES (\"{username}\", 1);"
             });
 
+            idUser = int.Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\""))[0][tag]!);
+            idGroup = int.Parse((await ExecQueryAsync(tag, "usergroups", $"isuser = 1 && name = \"{username}\""))[0][tag]!);
 
-
-            //// wip
-            //using (MySqlConnection connection = new(_connectionString))
-            //{
-            //    connection.Open();
-
-            //    using (MySqlCommand command = new($"SELECT {tag} FROM users WHERE username = \"{username}\";", connection))
-            //    {
-            //        using (var reader = (MySqlDataReader)await command.ExecuteReaderAsync())
-            //        {
-            //            while (await reader.ReadAsync())
-            //            {
-            //                idUser = reader.GetInt32(tag);
-            //            }
-            //        }
-            //    }
-            //}
-
-            //using (var reader = await ExecQueryAsync($"SELECT {tag} FROM usergroups WHERE isuser = 1 && name = \"{username}\";"))
-            //{
-            //    while (await reader.ReadAsync())
-            //    {
-            //        idGroup = reader.GetInt32(tag);
-            //    }
-            //}
-
-            //await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({idGroup}, {idUser})");
+            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({idGroup}, {idUser})");
         }
 
         public static async Task<string[]> GetUsernamesAsync()
         {
-            List<string> usernames = new();
+            List<string> usernames = [];
+            var tag = "username";
 
-            using (MySqlDataReader reader = await ExecQueryAsync("SELECT username FROM users;"))
-            {
-                while (await reader.ReadAsync(_cancellationToken))
-                    usernames.Add(reader.GetString("username"));
-            }
+            Array.ForEach(await ExecQueryAsync(tag, "users"), x => usernames.Add(x[tag]!));
 
             return usernames.ToArray();
         }
 
         public static async Task<string?> GetPasswordHashAsync(string username)
         {
-            using (MySqlDataReader reader = await ExecQueryAsync($"SELECT password_hash FROM users WHERE username = \"{username}\";"))
-            {
-                if (await reader.ReadAsync(_cancellationToken))
-                    return reader.GetString("password_hash");
-            }
+            var tag = "password_hash";
+            var results = await ExecQueryAsync(tag, "users", $"username = \"{username}\"");
+
+            if (results.Length == 1)
+                return results[0][tag];
 
             return null;
-        }
-
-        private static async Task<MySqlDataReader> ExecQueryAsync(string query)
-        {
-
-            using (MySqlConnection connection = new(_connectionString))
-            {
-                connection.Open();
-
-                using (MySqlCommand command = new(query, connection))
-                {
-                    return (MySqlDataReader)await command.ExecuteReaderAsync();
-                }
-            }
         }
 
         private static async Task ExecNonQueryAsync<T>(T commands)
@@ -106,7 +66,7 @@ namespace P2PShare.Server.DBAccess
 
             using (MySqlConnection connection = new(_connectionString))
             {
-                connection.Open();
+                await connection.OpenAsync(_cancellationToken);
 
                 for (var i = 0; i == 0 || (isTArray && i < commandsArr!.Length); i++)
                 {
@@ -118,7 +78,7 @@ namespace P2PShare.Server.DBAccess
             }
         }
 
-        private static async Task<Dictionary<string, string>[]> ExecQueryAsync<T>(T columns, string table, string? condition)
+        private static async Task<Dictionary<string, string?>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null)
         {
             var tType = columns?.GetType();
             string[] columnsArr;
@@ -130,7 +90,7 @@ namespace P2PShare.Server.DBAccess
             else
                 throw new NotImplementedException();
 
-            List<Dictionary<string, string>> values = [];
+            List<Dictionary<string, string?>> values = [];
             string columnsStr = String.Empty;
 
             for (var i = 0; i < columnsArr.Length; i++)
@@ -144,16 +104,16 @@ namespace P2PShare.Server.DBAccess
             {
                 await connection.OpenAsync(_cancellationToken);
 
-                using (MySqlCommand command = new($"SELECT DISTINCT {columnsStr} FROM {table}{(condition is not null ? $" WHERE {condition}" : String.Empty)};"))
+                using (MySqlCommand command = new($"SELECT DISTINCT {columnsStr} FROM {table}{(condition is not null ? $" WHERE {condition}" : String.Empty)};", connection))
                 {
                     using (var reader = (MySqlDataReader)await command.ExecuteReaderAsync(_cancellationToken))
                     {
                         while (!_cancellationToken.IsCancellationRequested && await reader.ReadAsync(_cancellationToken))
                         {
-                            Dictionary<string, string> row = [];
+                            Dictionary<string, string?> row = [];
 
                             foreach (var column in columnsArr)
-                                row.Add(column, reader.GetString(column));
+                                row.Add(column, reader.GetValue(column).ToString());
 
                             values.Add(row);
                         }
