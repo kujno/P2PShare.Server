@@ -4,6 +4,7 @@
     {
         public required string ErrorMessage { get; init; }
         public required string RemoteIP { get; init; }
+        public required string Username { get; init; }
         public required DateTime DateTime { get; init; }
     }
 }

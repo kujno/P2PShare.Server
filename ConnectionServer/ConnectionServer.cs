@@ -1,4 +1,5 @@
 ﻿using P2PShare.Libs.Models.FileSytem;
+using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 using System.Net;
 
@@ -8,15 +9,19 @@ namespace P2PShare.Server.ConnectionServer
     {
         private readonly CancellationToken _cancellationToken;
         private readonly ConnectionServerHandler _connectionHandler;
+        private readonly AppSettings _appSettings;
+
+        private string? _username = null;
 
         public ConnectionServer(AppSettings appSettings, CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
+            _appSettings = appSettings;
             _connectionHandler = new()
             {
                 CancellationToken = _cancellationToken,
                 IPLocal = IPAddress.Any,
-                AppSettings = appSettings
+                AppSettings = _appSettings
             };
         }
 
@@ -52,8 +57,39 @@ namespace P2PShare.Server.ConnectionServer
         {
             try
             {
-                await _connectionHandler.AuthOnNewPortAsync();
-                await _connectionHandler.SendUserFilesAsync(new UserFiles());
+                List<Dir> sharedDirs = [];
+                List<Fil> sharedFils = [];
+
+                _username = await _connectionHandler.AuthOnNewPortAsync();
+
+                Array.ForEach(await DBContext.GetSharedFilesAndDirectoriesAsync(_username), x =>
+                {
+                    if (x["type"] == "File")
+                    {
+                        FileInfo fi = new(x["path"]!);
+
+                        sharedFils.Add(new()
+                        {
+                            Name = fi.Name,
+                            Size = fi.Length,
+                            CanDelete = x["candelete"] == "1",
+                            CanRename = x["canrename"] == "1"
+                        });
+                    }
+                    else
+                    {
+                        sharedDirs.Add(new(x["path"])
+                        {
+                            CanDelete = x["candelete"] == "1",
+                            CanRename = x["canrename"] == "1",
+                        });
+                    }
+                });
+                await _connectionHandler.SendUserFilesAsync(new UserFiles()
+                {
+                    MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}"),
+                    SharedDirs = 
+                });
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
@@ -77,6 +113,7 @@ namespace P2PShare.Server.ConnectionServer
             {
                 ErrorMessage = ex.Message,
                 RemoteIP = _connectionHandler.IPRemote,
+                Username = _username ?? "Unknown",
                 DateTime = DateTime.Now
             });
         }

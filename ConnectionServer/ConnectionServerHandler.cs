@@ -8,9 +8,8 @@ namespace P2PShare.Server.ConnectionServer
     public class ConnectionServerHandler : ConnectionHandler
     {
         private int _port;
-        private string? _username;
 
-        public string IPRemote { get => _ipRemote?.ToString() ?? "No remote IP"; }
+        public string IPRemote { get => _ipRemote?.ToString() ?? "Unknown"; }
 
         public required AppSettings AppSettings { get; init; }
 
@@ -25,7 +24,7 @@ namespace P2PShare.Server.ConnectionServer
             }
         }
 
-        public async Task AuthOnNewPortAsync()
+        public async Task<string> AuthOnNewPortAsync()
         {
             Request request;
             bool auth = false;
@@ -67,7 +66,7 @@ namespace P2PShare.Server.ConnectionServer
             }
             while (!auth);
 
-            _username = request.Username;
+            return request.Username!;
         }
     }
 }
