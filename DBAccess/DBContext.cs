@@ -8,6 +8,8 @@ namespace P2PShare.Server.DBAccess
         private static CancellationToken _cancellationToken;
         private static string? _connectionString;
 
+        private static bool GetBoolFromTinyIntInString(string input) => input == "1";
+
         public static async Task InitAsync(DBCredentials credentials, CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
