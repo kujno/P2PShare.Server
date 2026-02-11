@@ -1,4 +1,5 @@
 ﻿using P2PShare.Libs.Models.FileSytem;
+using P2PShare.Libs.Models.Requests;
 using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 using System.Net;
@@ -11,8 +12,14 @@ namespace P2PShare.Server.ConnectionServer
         private readonly ConnectionServerHandler _connectionHandler;
         private readonly AppSettings _appSettings;
 
-        private string? _username = null;
+        private string? _username;
         private Task? _communication;
+
+        private string _usernameProp
+        {
+            get => _username
+                ?? throw new ArgumentNullException($"{nameof(_usernameProp)} is null.");
+        }
 
         public static event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
 
@@ -33,6 +40,8 @@ namespace P2PShare.Server.ConnectionServer
         public void Dispose() => _connectionHandler.Dispose();
 
         public void Serve() => _communication = ServeLoopAsync();
+
+        private async Task SendUserFilesAsync() => await _connectionHandler.SendUserFilesAsync((await CreateUserFilesAsync()).ToJSON());
 
         public async Task InitAsync()
         {
@@ -56,43 +65,42 @@ namespace P2PShare.Server.ConnectionServer
         {
             try
             {
-                List<Dir> sharedDirs = [];
-                List<Fil> sharedFils = [];
-
                 _username = await _connectionHandler.AuthOnNewPortAsync();
 
-                Array.ForEach(await DBContext.GetSharedFilesAndDirectoriesAsync(_username), x =>
-                {
-                    if (x["type"] == "File")
-                    {
-                        FileInfo fi = new(x["path"]!);
+                await SendUserFilesAsync();
 
-                        sharedFils.Add(new()
-                        {
-                            Name = fi.Name,
-                            Size = fi.Length,
-                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
-                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
-                        });
-                    }
-                    else
-                    {
-                        sharedDirs.Add(new(x["path"])
-                        {
-                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
-                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
-                        });
-                    }
-                });
-                await _connectionHandler.SendUserFilesAsync(new UserFiles()
-                {
-                    MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}"),
-                    SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
-                    SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null
-                }.ToJSON());
                 while (!_cancellationToken.IsCancellationRequested)
                 {
-                    // handle requests
+                    var request = Request.Create(await _connectionHandler.ReceiveRequestAsync());
+
+
+                    switch (request.Tag)
+                    {
+                        case Tag.Get:
+                            await SendUserFilesAsync();
+
+                            break;
+
+                        case Tag.Download:
+                            var userFiles = await CreateUserFilesAsync();
+                            var pathParts = request.FileName!.Split('\\');
+                            var authorized = VerifyUserRightsToFile(userFiles, request, pathParts);
+
+                            await _connectionHandler.YNSendAsync(true, authorized);
+
+                            if (authorized)
+                            {
+                                // create zip in temp for directory
+                                string path;
+
+                                if (request.Unit == Unit.Directory)
+                                {
+
+                                }
+                            }
+
+                            break;
+                    }
                 }
             }
             catch (OperationCanceledException) { }
@@ -115,6 +123,85 @@ namespace P2PShare.Server.ConnectionServer
                 Username = _username ?? "Unknown",
                 DateTime = DateTime.Now
             });
+        }
+
+        private async Task<UserFiles> CreateUserFilesAsync()
+        {
+            List<Dir> sharedDirs = [];
+            List<Fil> sharedFils = [];
+
+            Array.ForEach(await DBContext.GetSharedFilesAndDirectoriesAsync(_usernameProp), x =>
+            {
+                switch (Enum.Parse<Unit>(x["type"]))
+                {
+                    case Unit.File:
+                        FileInfo fi = new(x["path"]!);
+
+                        sharedFils.Add(new()
+                        {
+                            Name = fi.Name,
+                            Size = fi.Length,
+                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
+                        });
+
+                        break;
+                    case Unit.Directory:
+                        sharedDirs.Add(new(x["path"])
+                        {
+                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
+                        });
+
+                        break;
+                    default:
+                        throw new NotImplementedException("Unknown unit type.");
+                }
+            });
+            return new UserFiles()
+            {
+                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}"),
+                SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
+                SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null
+            };
+        }
+
+        private bool VerifyUserRightsToFile(UserFiles userFiles, Request request, string[] pathParts)
+        {
+            Dir? currentDir = new(String.Empty, null, request.My ? userFiles.MyDir.Dirs?.ToArray() : userFiles.SharedDirs?.ToArray());
+            bool check = true;
+            var isDirectory = request.Unit == Unit.Directory;
+            var iterationsCount = isDirectory ? pathParts.Length : pathParts.Length - 1;
+
+            for (int i = 0; i < iterationsCount && check; i++)
+            {
+                check = false;
+
+                if (currentDir.Dirs is not null)
+                {
+                    foreach (var dir in currentDir.Dirs)
+                    {
+                        if (dir.Name == pathParts[i])
+                        {
+                            currentDir = dir;
+
+                            check = true;
+                        }
+                    }
+                }
+            }
+
+            if (isDirectory)
+                return check;
+
+            check = false;
+
+            if (currentDir.Fils is not null)
+                foreach (var fil in currentDir.Fils)
+                    if (fil.Name == pathParts[pathParts.Length - 1])
+                        check = true;
+
+            return check;
         }
     }
 }
