@@ -26,7 +26,7 @@ namespace P2PShare.Server.DBAccess
             });
 
             idUser = int.Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\""))[0][tag]!);
-            idGroup = int.Parse((await ExecQueryAsync(tag, "usergroups", $"isuser = 1 && name = \"{username}\""))[0][tag]!);
+            idGroup = await GetUserGroupIdFromUsernameAsync(username);
 
             await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({idGroup}, {idUser})");
         }
@@ -78,7 +78,7 @@ namespace P2PShare.Server.DBAccess
             }
         }
 
-        private static async Task<Dictionary<string, string?>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null)
+        private static async Task<Dictionary<string, string?>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null, string joinString = "")
         {
             var tType = columns?.GetType();
             string[] columnsArr;
@@ -104,7 +104,9 @@ namespace P2PShare.Server.DBAccess
             {
                 await connection.OpenAsync(_cancellationToken);
 
-                using (MySqlCommand command = new($"SELECT DISTINCT {columnsStr} FROM {table}{(condition is not null ? $" WHERE {condition}" : String.Empty)};", connection))
+                if (joinString != String.Empty) joinString = " " + joinString;
+
+                using (MySqlCommand command = new($"SELECT DISTINCT {columnsStr} FROM {table}{joinString}{(condition is not null ? $" WHERE {condition}" : String.Empty)};", connection))
                 {
                     using (var reader = (MySqlDataReader)await command.ExecuteReaderAsync(_cancellationToken))
                     {
@@ -122,6 +124,23 @@ namespace P2PShare.Server.DBAccess
             }
 
             return values.ToArray();
+        }
+
+        public static async Task<Dictionary<string, string?>[]> GetSharedFilesAndDirectoriesAsync(string username)
+        {
+            return await ExecQueryAsync(new string[]
+            {
+                "path",
+                "type"
+            },
+            "sharedfiles", $"usergroups_id = {GetUserGroupIdFromUsernameAsync(username)}", "JOIN shares ON id = sharedfiles_id");
+        }
+
+        private static async Task<int> GetUserGroupIdFromUsernameAsync(string username)
+        {
+            var tag = "id";
+
+            return int.Parse((await ExecQueryAsync(tag, "usergroups", $"isuser = 1 && name = \"{username}\""))[0][tag]!);
         }
     }
 }
