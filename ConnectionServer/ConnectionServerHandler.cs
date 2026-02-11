@@ -15,6 +15,8 @@ namespace P2PShare.Server.ConnectionServer
 
         public async Task SendUserFilesAsync(string content) => await _netStream!.WriteAsync(_encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(content)), CancellationToken);
 
+        public async Task<string> ReceiveRequestAsync() => await ReceiveRequestAsync(true);
+        
         public async Task WaitForConnectionAsync()
         {
             using (Client = await ReceiveTcpClientAsync(_initialServerPort))
@@ -33,7 +35,7 @@ namespace P2PShare.Server.ConnectionServer
 
             do
             {
-                request = Request.Create(await ReceiveRequestAsync(true));
+                request = Request.Create(await ReceiveRequestAsync());
                 bool response = false;
 
                 switch (request.Tag)
