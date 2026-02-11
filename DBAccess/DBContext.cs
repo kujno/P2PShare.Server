@@ -131,7 +131,9 @@ namespace P2PShare.Server.DBAccess
             return await ExecQueryAsync(new string[]
             {
                 "path",
-                "type"
+                "type",
+                "candelete",
+                "canrename"
             },
             "sharedfiles", $"usergroups_id = {GetUserGroupIdFromUsernameAsync(username)}", "JOIN shares ON id = sharedfiles_id");
         }
