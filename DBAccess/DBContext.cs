@@ -78,7 +78,7 @@ namespace P2PShare.Server.DBAccess
             }
         }
 
-        private static async Task<Dictionary<string, string?>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null, string joinString = "")
+        private static async Task<Dictionary<string, string>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null, string joinString = "")
         {
             var tType = columns?.GetType();
             string[] columnsArr;
@@ -90,7 +90,7 @@ namespace P2PShare.Server.DBAccess
             else
                 throw new NotImplementedException();
 
-            List<Dictionary<string, string?>> values = [];
+            List<Dictionary<string, string>> values = [];
             string columnsStr = String.Empty;
 
             for (var i = 0; i < columnsArr.Length; i++)
@@ -112,10 +112,10 @@ namespace P2PShare.Server.DBAccess
                     {
                         while (!_cancellationToken.IsCancellationRequested && await reader.ReadAsync(_cancellationToken))
                         {
-                            Dictionary<string, string?> row = [];
+                            Dictionary<string, string> row = [];
 
                             foreach (var column in columnsArr)
-                                row.Add(column, reader.GetValue(column).ToString());
+                                row.Add(column, reader.GetValue(column).ToString()!);
 
                             values.Add(row);
                         }
@@ -126,7 +126,7 @@ namespace P2PShare.Server.DBAccess
             return values.ToArray();
         }
 
-        public static async Task<Dictionary<string, string?>[]> GetSharedFilesAndDirectoriesAsync(string username)
+        public static async Task<Dictionary<string, string>[]> GetSharedFilesAndDirectoriesAsync(string username)
         {
             return await ExecQueryAsync(new string[]
             {
