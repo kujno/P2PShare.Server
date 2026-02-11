@@ -12,6 +12,9 @@ namespace P2PShare.Server.ConnectionServer
         private readonly AppSettings _appSettings;
 
         private string? _username = null;
+        private Task? _communication;
+
+        public static event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
 
         public ConnectionServer(AppSettings appSettings, CancellationToken cancellationToken)
         {
@@ -24,10 +27,6 @@ namespace P2PShare.Server.ConnectionServer
                 AppSettings = _appSettings
             };
         }
-
-        private Task? _communication;
-
-        public static event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
 
         public bool IsDone { get; private set; } = false;
 
@@ -72,25 +71,25 @@ namespace P2PShare.Server.ConnectionServer
                         {
                             Name = fi.Name,
                             Size = fi.Length,
-                            CanDelete = x["candelete"] == "1",
-                            CanRename = x["canrename"] == "1"
+                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
                         });
                     }
                     else
                     {
                         sharedDirs.Add(new(x["path"])
                         {
-                            CanDelete = x["candelete"] == "1",
-                            CanRename = x["canrename"] == "1",
+                            CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
                         });
                     }
                 });
                 await _connectionHandler.SendUserFilesAsync(new UserFiles()
                 {
                     MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}"),
-                    SharedDirs = 
-                });
-
+                    SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
+                    SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null
+                }.ToJSON());
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     // handle requests
