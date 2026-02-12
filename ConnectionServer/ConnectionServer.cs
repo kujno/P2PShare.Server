@@ -44,6 +44,8 @@ namespace P2PShare.Server.ConnectionServer
 
         private async Task SendUserFilesAsync() => await _connectionHandler.SendUserFilesAsync((await CreateUserFilesAsync()).ToJSON());
 
+        private string[] GetPathParts(string path) => path.Split('\\');
+
         public async Task InitAsync()
         {
             try
@@ -84,8 +86,7 @@ namespace P2PShare.Server.ConnectionServer
 
                         case Tag.Download:
                             var userFiles = await CreateUserFilesAsync();
-                            var pathParts = request.FileName!.Split('\\');
-                            var authorized = VerifyUserRightsToFile(userFiles, request, pathParts);
+                            var authorized = VerifyUserAccessToFile(userFiles, request, out _);
 
                             await _connectionHandler.YNSendAsync(true, authorized);
 
@@ -102,7 +103,7 @@ namespace P2PShare.Server.ConnectionServer
                                 {
                                     var pathTemp = path;
 
-                                    path = $"{_appSettings.RootFolderPath}\\temp\\{pathParts.Last()}.zip";
+                                    path = $"{_appSettings.RootFolderPath}\\temp\\{GetPathParts(request.FileName!).Last()}.zip";
 
                                     await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
                                 }
@@ -182,12 +183,14 @@ namespace P2PShare.Server.ConnectionServer
             };
         }
 
-        private bool VerifyUserRightsToFile(UserFiles userFiles, Request request, string[] pathParts)
+        private bool VerifyUserAccessToFile(UserFiles userFiles, Request request, out Dir currentDir)
         {
-            Dir? currentDir = new(String.Empty, null, request.My ? userFiles.MyDir.Dirs?.ToArray() : userFiles.SharedDirs?.ToArray());
             bool check = true;
+            var pathParts = GetPathParts(request.FileName!);
             var isDirectory = request.Unit == Unit.Directory;
             var iterationsCount = isDirectory ? pathParts.Length : pathParts.Length - 1;
+
+            currentDir = new(String.Empty, _username!, null, request.My ? userFiles.MyDir.Dirs?.ToArray() : userFiles.SharedDirs?.ToArray());
 
             for (int i = 0; i < iterationsCount && check; i++)
             {
@@ -210,14 +213,12 @@ namespace P2PShare.Server.ConnectionServer
             if (isDirectory)
                 return check;
 
-            check = false;
-
             if (currentDir.Fils is not null)
                 foreach (var fil in currentDir.Fils)
                     if (fil.Name == pathParts[pathParts.Length - 1])
-                        check = true;
+                        return true;
 
-            return check;
+            return false;
         }
     }
 }
