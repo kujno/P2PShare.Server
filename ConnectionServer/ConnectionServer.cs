@@ -107,14 +107,11 @@ namespace P2PShare.Server.ConnectionServer
                                     await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
                                 }
 
-                                await _connectionHandler.YNSendAsync(true, authorized);
-
                                 await _connectionHandler.SendFilesAsync(new FileInfo[]
                                 {
                                     new(path)
                                 }, request.Encrypted);
                             }
-                            else await _connectionHandler.YNSendAsync(true, authorized);
 
                             break;
                     }
