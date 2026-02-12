@@ -99,7 +99,17 @@ namespace P2PShare.Server.ConnectionServer
                                 path += request.FileName;
 
                                 if (request.Unit == Unit.Directory)
-                                    ZipFile
+                                {
+                                    var pathTemp = path;
+                                    
+                                    path = $"{_appSettings.RootFolderPath}\\temp\\{pathParts.Last()}.zip";
+
+                                    await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
+                                }
+
+                                await _connectionHandler.YNSendAsync(true, authorized);
+
+                                await _connectionHandler.Se
                             }
 
                             break;
