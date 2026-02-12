@@ -101,7 +101,7 @@ namespace P2PShare.Server.ConnectionServer
                                 if (request.Unit == Unit.Directory)
                                 {
                                     var pathTemp = path;
-                                    
+
                                     path = $"{_appSettings.RootFolderPath}\\temp\\{pathParts.Last()}.zip";
 
                                     await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
@@ -109,8 +109,12 @@ namespace P2PShare.Server.ConnectionServer
 
                                 await _connectionHandler.YNSendAsync(true, authorized);
 
-                                await _connectionHandler.Se
+                                await _connectionHandler.SendFilesAsync(new FileInfo[]
+                                {
+                                    new(path)
+                                }, request.Encrypted);
                             }
+                            else await _connectionHandler.YNSendAsync(true, authorized);
 
                             break;
                     }
