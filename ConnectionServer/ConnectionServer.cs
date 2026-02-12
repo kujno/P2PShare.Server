@@ -2,6 +2,7 @@
 using P2PShare.Libs.Models.Requests;
 using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
+using System.IO.Compression;
 using System.Net;
 
 namespace P2PShare.Server.ConnectionServer
@@ -91,12 +92,14 @@ namespace P2PShare.Server.ConnectionServer
                             if (authorized)
                             {
                                 // create zip in temp for directory
-                                string path;
+                                var path = $"{_appSettings.RootFolderPath}\\";
+
+                                if (request.My)
+                                    path += $"{_username}\\";
+                                path += request.FileName;
 
                                 if (request.Unit == Unit.Directory)
-                                {
-
-                                }
+                                    ZipFile
                             }
 
                             break;
