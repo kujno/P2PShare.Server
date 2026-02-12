@@ -91,13 +91,13 @@ namespace P2PShare.Server.ConnectionServer
 
                             if (authorized)
                             {
-                                // create zip in temp for directory
                                 var path = $"{_appSettings.RootFolderPath}\\";
 
                                 if (request.My)
                                     path += $"{_username}\\";
                                 path += request.FileName;
 
+                                // pre priecinok vytvorit zip v tempe
                                 if (request.Unit == Unit.Directory)
                                 {
                                     var pathTemp = path;
@@ -159,15 +159,17 @@ namespace P2PShare.Server.ConnectionServer
                             Name = fi.Name,
                             Size = fi.Length,
                             CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
-                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"]),
+                            Owner = x["owner_id"]
                         });
 
                         break;
                     case Unit.Directory:
-                        sharedDirs.Add(new(x["path"])
+                        sharedDirs.Add(new(x["path"], x["owner_id"])
                         {
                             CanDelete = DBContext.GetBoolFromTinyIntInString(x["candelete"]),
-                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"])
+                            CanRename = DBContext.GetBoolFromTinyIntInString(x["canrename"]),
+                            CanAdd = DBContext.GetBoolFromTinyIntInString(x["canadd"])
                         });
 
                         break;
@@ -177,7 +179,7 @@ namespace P2PShare.Server.ConnectionServer
             });
             return new UserFiles()
             {
-                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}"),
+                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}", _username!),
                 SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
                 SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null
             };
