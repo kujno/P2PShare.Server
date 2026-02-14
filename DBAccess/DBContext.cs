@@ -30,7 +30,7 @@ namespace P2PShare.Server.DBAccess
             idUser = await GetIDFromUsernameAsync(username);
             idGroup = int.Parse((await ExecQueryAsync(tag, "usergroups", $"isuser = 1 && name = \"{username}\""))[0][tag]!);
 
-            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({idGroup}, {idUser})");
+            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({idGroup}, {idUser});");
         }
 
         public static async Task<string[]> GetUsernamesAsync()
@@ -54,7 +54,7 @@ namespace P2PShare.Server.DBAccess
             return null;
         }
 
-        private static async Task ExecNonQueryAsync<T>(T commands)
+        public static async Task ExecNonQueryAsync<T>(T commands)
         {
             var tType = typeof(T);
             var isTString = tType == typeof(string);
@@ -88,7 +88,7 @@ namespace P2PShare.Server.DBAccess
             if (tType == typeof(string[]))
                 columnsArr = (string[])(object)columns!;
             else if (tType == typeof(string))
-                columnsArr = new string[] { (string)(object)columns! };
+                columnsArr = [(string)(object)columns!];
             else
                 throw new NotImplementedException();
 
@@ -137,9 +137,9 @@ namespace P2PShare.Server.DBAccess
                 "candelete",
                 "canrename",
                 "canadd",
-                "owner_id"
+                "username"
             },
-            "sharedfiles", $"usergroups_id in {await GetGroupIdsStringFromUsernameAsync(username)}", "JOIN shares ON id = sharedfiles_id");
+            "users", $"usergroups_id in {await GetGroupIdsStringFromUsernameAsync(username)}", "JOIN sharedfiles ON users.id = owner_id JOIN shares ON sharedfiles.id = sharedfiles_id");
         }
 
         private static async Task<string> GetGroupIdsStringFromUsernameAsync(string username)
@@ -162,6 +162,17 @@ namespace P2PShare.Server.DBAccess
             var tag = "id";
 
             return int.Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\"")).First()[tag]);
+        }
+
+        public static async Task<string[]> GetUserGroupsAsync(string username)
+        {
+            var tag = "name";
+            var id = await GetIDFromUsernameAsync(username);
+            List<string> output = [];
+
+            Array.ForEach(await ExecQueryAsync(tag, "usergroups", $"users_id = \"{id}\" && isuser = 0", "JOIN usergroups_has_users ON id = usergroups_id"), x => output.Add(x[tag]));
+
+            return output.ToArray();
         }
     }
 }
