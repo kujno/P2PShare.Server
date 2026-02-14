@@ -13,10 +13,8 @@ namespace P2PShare.Server.ConnectionServer
 
         public required AppSettings AppSettings { get; init; }
 
-        public async Task SendUserFilesAsync(string content) => await _netStream!.WriteAsync(_encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(content)), CancellationToken);
-
         public async Task<string> ReceiveRequestAsync() => await ReceiveRequestAsync(true);
-        
+
         public async Task WaitForConnectionAsync()
         {
             using (Client = await ReceiveTcpClientAsync(_initialServerPort))
@@ -69,6 +67,25 @@ namespace P2PShare.Server.ConnectionServer
             while (!auth);
 
             return request.Username!;
+        }
+
+        public async Task SendFileAsync(FileInfo file, bool encrypted)
+        {
+            var fileArr = new FileInfo[] { file };
+
+            await SendInviteAsync(fileArr, encrypted);
+            await YNReceiveAsync(encrypted);
+
+            await SendFilesAsync(fileArr, encrypted);
+        }
+
+        public async Task SendInfoAsync(string info)
+        {
+            var infoBytes = _encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(info));
+
+            await SendInfoLengthAsync(infoBytes.Length, true);
+
+            await _netStream!.WriteAsync(infoBytes, CancellationToken);
         }
     }
 }
