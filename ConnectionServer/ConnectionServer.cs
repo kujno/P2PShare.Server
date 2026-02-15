@@ -134,7 +134,7 @@ namespace P2PShare.Server.ConnectionServer
 
                             break;
 
-                        case Tag.Rename:
+                        case Tag.RenameFile:
                             string unitName = GetPathParts(request.NewFileName!).Last(), userFolder, oldPath, newPath;
                             Fil? fil;
                             bool check = VerifyUserAccessToFile(userFiles, request, out dir, out fil), isFile = IsUnitFile(request.Unit);
@@ -165,7 +165,7 @@ namespace P2PShare.Server.ConnectionServer
 
                             break;
 
-                        case Tag.Delete:
+                        case Tag.DeleteFile:
                             check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
 
 
