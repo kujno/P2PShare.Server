@@ -10,6 +10,8 @@ namespace P2PShare.Server.DBAccess
 
         public static bool GetBoolFromTinyIntInString(string input) => input == "1";
 
+        public static async Task DeleteSharedFile(string path) => await ExecNonQueryAsync($"DELETE FROM sharedfiles WHERE path = \"{path}\"");
+
         public static async Task InitAsync(DBCredentials credentials, CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
@@ -173,6 +175,16 @@ namespace P2PShare.Server.DBAccess
             Array.ForEach(await ExecQueryAsync(tag, "usergroups", $"users_id = \"{id}\" && isuser = 0", "JOIN usergroups_has_users ON id = usergroups_id"), x => output.Add(x[tag]));
 
             return output.ToArray();
+        }
+
+        public static async Task<bool> IsUserVerified(string username)
+        {
+            var tag = "verified";
+
+            return (await ExecQueryAsync(tag, "users", $"username = \"{username}\""))
+                .First()[tag] == "1" 
+                ? true 
+                : false;
         }
     }
 }
