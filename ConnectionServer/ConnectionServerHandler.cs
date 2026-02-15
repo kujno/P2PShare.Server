@@ -51,10 +51,18 @@ namespace P2PShare.Server.ConnectionServer
                         break;
 
                     case Tag.Login:
-                        var dbHash = await DBContext.GetPasswordHashAsync(request.Username!);
+                        string? dbHash;
 
-                        if (dbHash is not null)
-                            response = Hasher.Verify(request.Password!, dbHash);
+                        response = await DBContext.IsUserVerified(request.Username!);
+
+                        if (response)
+                        {
+                            dbHash = await DBContext.GetPasswordHashAsync(request.Username!);
+
+                            if (dbHash is not null)
+                                response = Hasher.Verify(request.Password!, dbHash);
+                        }
+
                         auth = response;
 
                         break;
