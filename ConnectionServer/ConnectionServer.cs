@@ -80,6 +80,7 @@ namespace P2PShare.Server.ConnectionServer
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
 
+                    // put this in a big try catch that won't catch proly SocketEx... and CanceledEx... and sendYN after the switch block
                     switch (request.Tag)
                     {
                         case Tag.Get:
@@ -207,6 +208,12 @@ namespace P2PShare.Server.ConnectionServer
 
                             await _connectionHandler.YNSendAsync(request.Encrypted, check);
 
+                            break;
+
+                        //case Tag.EditGroup: TODO
+                        case Tag.DeleteGroup:
+                            //check = _usernameProp == (create a method for determining real admin)
+                            
                             break;
                     }
                 }
