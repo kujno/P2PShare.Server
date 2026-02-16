@@ -197,6 +197,17 @@ namespace P2PShare.Server.ConnectionServer
                             await _connectionHandler.YNSendAsync(true, check);
 
                             break;
+
+                        case Tag.AddGroup:
+                            check = _usernameProp == request.Group!.Admin.Username
+                                && (await DBContext.GetUserGroupsAsync()).All(x => x.Name != request.Group.Name);
+
+                            if (check)
+                                await DBContext.AddUserGroupAsync(request.Group);
+
+                            await _connectionHandler.YNSendAsync(request.Encrypted, check);
+
+                            break;
                     }
                 }
             }
@@ -255,7 +266,7 @@ namespace P2PShare.Server.ConnectionServer
             return new AllUserInfo()
             {
                 MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_usernameProp}", _usernameProp, true, true, true),
-                Users = await DBContext.GetUsernamesAsync(),
+                Users = await DBContext.GetUsersAsync(),
                 SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
                 SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null,
                 UserGroups = await DBContext.GetUserGroupsAsync(_usernameProp)
