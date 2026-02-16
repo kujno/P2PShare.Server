@@ -1,4 +1,5 @@
 ﻿using MySql.Data.MySqlClient;
+using P2PShare.Libs.Models.FileSytem;
 using System.Data;
 
 namespace P2PShare.Server.DBAccess
@@ -43,6 +44,25 @@ namespace P2PShare.Server.DBAccess
             Array.ForEach(await ExecQueryAsync(tag, "users"), x => usernames.Add(x[tag]!));
 
             return usernames.ToArray();
+        }
+
+        public static async Task<User[]> GetUsersAsync()
+        {
+            List<User> users = [];
+
+            Array.ForEach(await ExecQueryAsync(new string[]
+            {
+                "username",
+                "name",
+                "surename"
+            }, "users"), x => users.Add(new()
+            {
+                Username = x["username"],
+                Name = x["name"],
+                Surename = x["surename"]
+            }));
+
+            return users.ToArray();
         }
 
         public static async Task<string?> GetPasswordHashAsync(string username)
@@ -166,15 +186,79 @@ namespace P2PShare.Server.DBAccess
             return int.Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\"")).First()[tag]);
         }
 
-        public static async Task<string[]> GetUserGroupsAsync(string username)
-        {
-            var tag = "name";
-            var id = await GetIDFromUsernameAsync(username);
-            List<string> output = [];
+        public static async Task<Group[]> GetUserGroupsAsync(string username) => (await GetUserGroupsAsync()).Where(x => x.Users.Any(y => y.Username == username) || x.Admin.Username == username).ToArray();
 
-            Array.ForEach(await ExecQueryAsync(tag, "usergroups", $"users_id = \"{id}\" && isuser = 0", "JOIN usergroups_has_users ON id = usergroups_id"), x => output.Add(x[tag]));
+        public static async Task<Group[]> GetUserGroupsAsync()
+        {
+            List<int> groupIDs = [];
+            List<string> groupNames = [];
+            List<User> admins = [];
+            List<Group> output = [];
+
+            Array.ForEach(await ExecQueryAsync(new string[]
+            {
+                "usergroups.name",
+                "usergroups.id",
+                "users.username",
+                "users.name",
+                "users.surename"
+            }, "usergroups", null, "JOIN usergroups_has_users ON usergroups.id = usergroups_id JOIN users ON users_id = users.id"), x =>
+            {
+                groupNames.Add(x["name"]);
+                groupIDs.Add(int.Parse(x["id"]));
+                admins.Add(new()
+                {
+                    Username = x["users.username"],
+                    Name = x["users.name"],
+                    Surename = x["users.surename"]
+                });
+            });
+
+            for (var i = 0; i < groupNames.Count; i++)
+            {
+                List<User> users = [];
+
+                Array.ForEach(await ExecQueryAsync(new string[]
+                {
+                    "username",
+                    "name",
+                    "surename"
+                }, "users", $"usergroups_id = {groupIDs[i]} && isadmin = 0", "JOIN usergroups_has_users ON id = users_id"), x =>
+                {
+                    users.Add(new()
+                    {
+                        Username = x["username"],
+                        Name = x["name"],
+                        Surename = x["surename"]
+                    });
+                });
+
+                output.Add(new()
+                {
+                    Name = groupNames[i],
+                    Admin = admins[i],
+                    Users = users.ToArray(),
+                });
+            }
 
             return output.ToArray();
+        }
+
+        public static async Task AddUserGroupAsync(Group group)
+        {
+            int groupID, adminID = await GetIDFromUsernameAsync(group.Admin.Username);
+            List<int> userIDs = [];
+
+            foreach (var user in group.Users)
+                userIDs.Add(await GetIDFromUsernameAsync(user.Username));
+
+            await ExecNonQueryAsync($"INSERT INTO usergroups (name) VALUES (\"{group.Name}\");");
+
+            groupID = int.Parse((await ExecQueryAsync("id", "usergroups", $"name = {group.Name}")).First()["id"]);
+
+            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users VALUES ({groupID}, {adminID}, 1);");
+
+            userIDs.ForEach(async x => await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {x});"));
         }
 
         public static async Task<bool> IsUserVerified(string username)
@@ -182,8 +266,8 @@ namespace P2PShare.Server.DBAccess
             var tag = "verified";
 
             return (await ExecQueryAsync(tag, "users", $"username = \"{username}\""))
-                .First()[tag] == "1" 
-                ? true 
+                .First()[tag] == "1"
+                ? true
                 : false;
         }
     }
