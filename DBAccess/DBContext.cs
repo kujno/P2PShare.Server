@@ -13,6 +13,8 @@ namespace P2PShare.Server.DBAccess
 
         public static async Task DeleteSharedFile(string path) => await ExecNonQueryAsync($"DELETE FROM sharedfiles WHERE path = \"{path}\"");
 
+        public static async Task UpdateGroupNameAsync(string oldName, string newName) => await ExecNonQueryAsync($"UPDATE usergroups SET name = \"{newName}\" WHERE name = \"{oldName}\";");
+
         public static async Task InitAsync(DBCredentials credentials, CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
@@ -261,7 +263,7 @@ namespace P2PShare.Server.DBAccess
             userIDs.ForEach(async x => await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {x});"));
         }
 
-        public static async Task<bool> IsUserVerified(string username)
+        public static async Task<bool> IsUserVerifiedAsync(string username)
         {
             var tag = "verified";
 
@@ -269,6 +271,49 @@ namespace P2PShare.Server.DBAccess
                 .First()[tag] == "1"
                 ? true
                 : false;
+        }
+
+        public static async Task<string> GetUserGroupAdminAsync(string groupName)
+        {
+            var tag = "username";
+
+            return (await ExecQueryAsync(tag, "users", $"usergroups.name = \"{groupName}\" && isadmin = 1", "JOIN usergroups_has_users ON users.id = users_id JOIN usergroups ON usergroups_id = usergroups.id")).First()[tag];
+        }
+
+        public static async Task UpdateUsersInGroupAsync(Group oldGroup, Group newGroup)
+        {
+            string[] oldUsers = oldGroup.GetUsersUsernames(), newUsers = newGroup.GetUsersUsernames();
+            var tag = "id";
+            var groupID = (await ExecQueryAsync(tag, "groups", $"name = \"{newGroup.Name}\"")).First()[tag];
+
+
+            Array.ForEach(oldUsers, async x =>
+            {
+                var found = false;
+
+                for (var i = 0; i < newUsers.Length && !found; i++)
+                {
+                    if (x == newUsers[i])
+                        found = true;
+                }
+
+                if (!found)
+                    await ExecNonQueryAsync($"DELETE FROM usergroups_has_users WHERE username = \"{x}\" && isadmin = 0 JOIN users ON users_id = id;");
+            });
+
+            Array.ForEach(newUsers, async x =>
+            {
+                var found = false;
+
+                for (var i = 0; i < oldUsers.Length && !found; i++)
+                {
+                    if (x == newUsers[i])
+                        found = true;
+                }
+
+                if (!found)
+                    await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {await GetIDFromUsernameAsync(x)};");
+            });
         }
     }
 }
