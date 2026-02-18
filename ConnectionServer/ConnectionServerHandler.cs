@@ -53,7 +53,7 @@ namespace P2PShare.Server.ConnectionServer
                     case Tag.Login:
                         string? dbHash;
 
-                        response = await DBContext.IsUserVerified(request.Username!);
+                        response = await DBContext.IsUserVerifiedAsync(request.Username!);
 
                         if (response)
                         {
