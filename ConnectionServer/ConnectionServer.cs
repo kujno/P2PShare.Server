@@ -4,6 +4,7 @@ using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Sockets;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -79,143 +80,171 @@ namespace P2PShare.Server.ConnectionServer
                     var userFiles = await CreateUserFilesAsync(_usernameProp);
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
+                    bool check;
 
-                    // put this in a big try catch that won't catch proly SocketEx... and CanceledEx... and sendYN after the switch block
-                    switch (request.Tag)
+                    try
                     {
-                        case Tag.Get:
-                            await _connectionHandler.SendInfoAsync(userFilesJSON);
+                        check = false;
 
-                            break;
+                        switch (request.Tag)
+                        {
+                            case Tag.Get:
+                                await _connectionHandler.SendInfoAsync(userFilesJSON);
 
-                        case Tag.Download:
-                            var authorized = VerifyUserAccessToFile(userFiles, request, out _, out _);
+                                break;
 
-                            await _connectionHandler.YNSendAsync(true, authorized);
+                            case Tag.Download:
+                                var authorized = VerifyUserAccessToFile(userFiles, request, out _, out _);
 
-                            if (authorized)
-                            {
-                                var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
+                                await _connectionHandler.YNSendAsync(true, authorized);
 
-                                if (request.My)
-                                    path += $"{_usernameProp}\\";
-                                path += request.FileName;
-
-                                // pre priecinok vytvorit zip v tempe
-                                if (request.Unit == Unit.Directory)
+                                if (authorized)
                                 {
-                                    var pathTemp = path;
+                                    var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
 
-                                    path = $"{_appSettings.RootFolderPath}{_fileSeparator}temp{_fileSeparator}{pathParts!.Last()}.zip";
+                                    if (request.My)
+                                        path += $"{_usernameProp}\\";
+                                    path += request.FileName;
 
-                                    await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
+                                    // pre priecinok vytvorit zip v tempe
+                                    if (request.Unit == Unit.Directory)
+                                    {
+                                        var pathTemp = path;
+
+                                        path = $"{_appSettings.RootFolderPath}{_fileSeparator}temp{_fileSeparator}{pathParts!.Last()}.zip";
+
+                                        await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
+                                    }
+
+                                    await _connectionHandler.SendFileAsync(new(path), request.Encrypted);
                                 }
 
-                                await _connectionHandler.SendFileAsync(new(path), request.Encrypted);
-                            }
+                                break;
 
-                            break;
+                            case Tag.Upload:
+                                Dir dir;
 
-                        case Tag.Upload:
-                            Dir dir;
+                                pathParts = GetPathParts(request.FileName!);
 
-                            pathParts = GetPathParts(request.FileName!);
+                                VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
 
-                            VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
-
-                            await _connectionHandler.YNSendAsync(true, dir.CanAdd);
-
-                            if (dir.CanAdd)
-                            {
-                                await _connectionHandler.ReceiveFilesAsync(new()
+                                if (check = dir.CanAdd)
+                                {
+                                    await _connectionHandler.ReceiveFilesAsync(new()
                                 {
                                     { pathParts.Last(), request.FileSize }
                                 }, $"{_appSettings.RootFolderPath}{dir.Owner}{request.FileName!.Substring(0, request.FileName.LastIndexOf(_fileSeparator))}", request.Encrypted);
-                            }
-
-                            break;
-
-                        case Tag.RenameFile:
-                            string unitName = GetPathParts(request.NewFileName!).Last(), userFolder, oldPath, newPath;
-                            Fil? fil;
-                            bool check = VerifyUserAccessToFile(userFiles, request, out dir, out fil), isFile = IsUnitFile(request.Unit);
-                            var owner = isFile ? fil!.Owner : dir.Owner;
-
-                            userFolder = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}{_fileSeparator}";
-                            oldPath = userFolder + request.FileName;
-                            newPath = userFolder + request.NewFileName;
-                            check = check
-                                && ((isFile && fil!.CanRename && dir.Fils is not null && dir.Fils.All(x => !String.Equals(x.Name, unitName))) || dir.CanRename);
-
-                            if (!isFile)
-                            {
-                                VerifyUserAccessToFile(owner == _usernameProp ? userFiles : await CreateUserFilesAsync(owner), request, out dir, out fil, true);
-
-                                check = check
-                                    && dir.Dirs!.All(x => !String.Equals(x.Name, unitName));
-                            }
-
-                            if (check)
-                            {
-                                File.Move(oldPath, newPath);
-
-                                await DBContext.ExecNonQueryAsync($"UPDATE sharedfiles SET path = {newPath} WHERE path = {oldPath}");
-                            }
-
-                            await _connectionHandler.YNSendAsync(true, check);
-
-                            break;
-
-                        case Tag.DeleteFile:
-                            check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
-
-
-                            if (check)
-                            {
-                                isFile = IsUnitFile(request.Unit);
-                                var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
-
-                                if (isFile)
-                                {
-                                    check = fil!.CanDelete;
-                                    path += $"{fil.Owner}{_fileSeparator}{fil.Name}";
                                 }
-                                else
+
+                                break;
+
+                            case Tag.RenameFile:
+                                string unitName = GetPathParts(request.NewFileName!).Last(), userFolder, oldPath, newPath;
+                                Fil? fil;
+                                check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
+                                var isFile = IsUnitFile(request.Unit);
+                                var owner = isFile ? fil!.Owner : dir.Owner;
+
+                                userFolder = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}{_fileSeparator}";
+                                oldPath = userFolder + request.FileName;
+                                newPath = userFolder + request.NewFileName;
+                                check = check
+                                    && ((isFile && fil!.CanRename && dir.Fils is not null && dir.Fils.All(x => !String.Equals(x.Name, unitName))) || dir.CanRename);
+
+                                if (!isFile)
                                 {
-                                    check = dir.CanDelete;
-                                    path += $"{dir.Owner}{_fileSeparator}{dir.Name}";
+                                    VerifyUserAccessToFile(owner == _usernameProp ? userFiles : await CreateUserFilesAsync(owner), request, out dir, out fil, true);
+
+                                    check = check
+                                        && dir.Dirs!.All(x => !String.Equals(x.Name, unitName));
                                 }
 
                                 if (check)
                                 {
-                                    if (isFile)
-                                        await DeleteFile(path);
-                                    else
-                                        await DeleteDir(path);
+                                    File.Move(oldPath, newPath);
+
+                                    await DBContext.ExecNonQueryAsync($"UPDATE sharedfiles SET path = {newPath} WHERE path = {oldPath}");
                                 }
-                            }
 
-                            await _connectionHandler.YNSendAsync(true, check);
+                                break;
 
-                            break;
+                            case Tag.DeleteFile:
+                                check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
 
-                        case Tag.AddGroup:
-                            check = _usernameProp == request.Group!.Admin.Username
-                                && (await DBContext.GetUserGroupsAsync()).All(x => x.Name != request.Group.Name);
+                                if (check)
+                                {
+                                    isFile = IsUnitFile(request.Unit);
+                                    var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
 
-                            if (check)
-                                await DBContext.AddUserGroupAsync(request.Group);
+                                    if (isFile)
+                                    {
+                                        check = fil!.CanDelete;
+                                        path += $"{fil.Owner}{_fileSeparator}{fil.Name}";
+                                    }
+                                    else
+                                    {
+                                        check = dir.CanDelete;
+                                        path += $"{dir.Owner}{_fileSeparator}{dir.Name}";
+                                    }
 
-                            await _connectionHandler.YNSendAsync(request.Encrypted, check);
+                                    if (check)
+                                    {
+                                        if (isFile)
+                                            await DeleteFile(path);
+                                        else
+                                            await DeleteDir(path);
+                                    }
+                                }
 
-                            break;
+                                break;
 
-                        //case Tag.EditGroup: TODO
-                        case Tag.DeleteGroup:
-                            //check = _usernameProp == (create a method for determining real admin)
-                            
-                            break;
+                            case Tag.AddGroup:
+                                check = _usernameProp == request.Group!.Admin.Username
+                                    && (await DBContext.GetUserGroupsAsync()).All(x => x.Name != request.Group.Name);
+
+                                if (check)
+                                    await DBContext.AddUserGroupAsync(request.Group);
+
+                                break;
+
+                            case Tag.EditGroup:
+                                check = _usernameProp == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
+
+                                if (check)
+                                {
+                                    if (request.Group.Name != request.UpdatedGroup!.Name)
+                                        await DBContext.UpdateGroupNameAsync(request.Group.Name, request.UpdatedGroup.Name);
+
+                                    if (!Enumerable.SequenceEqual(request.Group.Users, request.UpdatedGroup.Users))
+                                        await DBContext.UpdateUsersInGroupAsync(request.Group, request.UpdatedGroup);
+                                }
+
+                                break;
+
+                            case Tag.DeleteGroup:
+                                check = _usernameProp == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
+
+                                if (check)
+                                    await DBContext.ExecNonQueryAsync($"DELETE FROM usergroups WHERE name = \"{request.Group.Name}\"");
+
+                                break;
+                        }
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (SocketException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        check = false;
+                    }
+
+                    if (request.Tag != Tag.Get && request.Tag != Tag.Download)
+                        await _connectionHandler.YNSendAsync(request.Encrypted, check);
                 }
             }
             catch (OperationCanceledException) { }
