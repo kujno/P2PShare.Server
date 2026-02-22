@@ -315,5 +315,23 @@ namespace P2PShare.Server.DBAccess
                     await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {await GetIDFromUsernameAsync(x)};");
             });
         }
+
+        public static async Task<User> GetUserInfoAsync(string username)
+        {
+            var result = (await ExecQueryAsync(new string[]
+                {
+                    "username",
+                    "name",
+                    "surename"
+                }, "users", $"username = \"{username}\""))
+                .First();
+
+            return new()
+            {
+                Username = result["username"],
+                Name = result["name"],
+                Surename = result["surename"]
+            };
+        }
     }
 }
