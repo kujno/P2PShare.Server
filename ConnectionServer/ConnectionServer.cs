@@ -76,7 +76,7 @@ namespace P2PShare.Server.ConnectionServer
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
-                    var request = Request.Create(await _connectionHandler.ReceiveRequestAsync());
+                    var request = Request.Create(await _connectionHandler.ReceiveInfoAsync());
                     var userFiles = await CreateUserFilesAsync(_usernameProp);
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
@@ -228,6 +228,11 @@ namespace P2PShare.Server.ConnectionServer
                                     await DBContext.ExecNonQueryAsync($"DELETE FROM usergroups WHERE name = \"{request.Group.Name}\"");
 
                                 break;
+
+                            case Tag.Share:
+                                // get done
+
+                                break;
                         }
                     }
                     catch (OperationCanceledException)
@@ -301,6 +306,7 @@ namespace P2PShare.Server.ConnectionServer
             });
             return new AllUserInfo()
             {
+                User = await DBContext.GetUserInfoAsync(_usernameProp),
                 MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_usernameProp}", _usernameProp, true, true, true),
                 Users = await DBContext.GetUsersAsync(),
                 SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,

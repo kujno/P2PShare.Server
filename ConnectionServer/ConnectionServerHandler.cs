@@ -1,7 +1,6 @@
 ﻿using P2PShare.Libs;
 using P2PShare.Libs.Models.Requests;
 using P2PShare.Server.DBAccess;
-using System.Text;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -12,8 +11,6 @@ namespace P2PShare.Server.ConnectionServer
         public string IPRemote { get => _ipRemote?.ToString() ?? "Unknown"; }
 
         public required AppSettings AppSettings { get; init; }
-
-        public async Task<string> ReceiveRequestAsync() => await ReceiveRequestAsync(true);
 
         public async Task WaitForConnectionAsync()
         {
@@ -33,7 +30,7 @@ namespace P2PShare.Server.ConnectionServer
 
             do
             {
-                request = Request.Create(await ReceiveRequestAsync());
+                request = Request.Create(await ReceiveInfoAsync());
                 bool response = false;
 
                 switch (request.Tag)
@@ -85,15 +82,6 @@ namespace P2PShare.Server.ConnectionServer
             await YNReceiveAsync(encrypted);
 
             await SendFilesAsync(fileArr, encrypted);
-        }
-
-        public async Task SendInfoAsync(string info)
-        {
-            var infoBytes = _encryptionSymmetrical!.Encrypt(Encoding.UTF8.GetBytes(info));
-
-            await SendInfoLengthAsync(infoBytes.Length, true);
-
-            await _netStream!.WriteAsync(infoBytes, CancellationToken);
         }
     }
 }
