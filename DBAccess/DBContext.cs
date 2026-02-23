@@ -121,7 +121,9 @@ namespace P2PShare.Server.DBAccess
 
             for (var i = 0; i < columnsArr.Length; i++)
             {
-                columnsStr += columnsArr[i];
+                columnsStr += $"{columnsArr[i]}";
+                columnsArr[i] = columnsArr[i].Replace('.', '_');
+                columnsStr += $" AS {columnsArr[i]}";
                 if (i < columnsArr.Length - 1)
                     columnsStr += ", ";
             }
@@ -169,7 +171,7 @@ namespace P2PShare.Server.DBAccess
         private static async Task<string> GetGroupIdsStringFromUsernameAsync(string username)
         {
             var tag = "id";
-            var results = await ExecQueryAsync(tag, "usergroups", $"users_id = {await GetIDFromUsernameAsync(username)}", "JOIN usergroups_hash_users ON id = usergroups_id");
+            var results = await ExecQueryAsync(tag, "usergroups", $"users_id = {await GetIDFromUsernameAsync(username)}", "JOIN usergroups_has_users ON id = usergroups_id");
             string output = "(";
 
             for (var i = 0; i < results.Length; i++)
@@ -206,13 +208,13 @@ namespace P2PShare.Server.DBAccess
                 "users.surename"
             }, "usergroups", null, "JOIN usergroups_has_users ON usergroups.id = usergroups_id JOIN users ON users_id = users.id"), x =>
             {
-                groupNames.Add(x["name"]);
-                groupIDs.Add(int.Parse(x["id"]));
+                groupNames.Add(x["usergroups_name"]);
+                groupIDs.Add(int.Parse(x["usergroups_id"]));
                 admins.Add(new()
                 {
-                    Username = x["users.username"],
-                    Name = x["users.name"],
-                    Surename = x["users.surename"]
+                    Username = x["users_username"],
+                    Name = x["users_name"],
+                    Surename = x["users_surename"]
                 });
             });
 
