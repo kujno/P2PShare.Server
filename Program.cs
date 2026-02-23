@@ -14,6 +14,7 @@ namespace P2PShare.Server
             { Command.Start, "Starts the server." },
             { Command.Stop, "Stops the server." },
             { Command.Help, "Displays all of the commands." },
+            { Command.Clear, "Clear the the command prompt and display server status."},
             { Command.Exit, "Exits the application." }
         };
 
@@ -133,9 +134,13 @@ namespace P2PShare.Server
                 case Command.Help:
                     string output = String.Empty;
 
-                    foreach (var commandAndDesc in _commandDescriptions) output += $"{commandAndDesc.Key.ToString().ToLower()} - {commandAndDesc.Value}\n";
+                    foreach (var commandAndDesc in _commandDescriptions)
+                        output += $"{commandAndDesc.Key.ToString().ToLower()} - {commandAndDesc.Value}\n";
 
                     DisplayCommandOutput(output.Trim());
+                    break;
+                case Command.Clear:
+                    DisplayHeader();
                     break;
                 case Command.Exit:
                     // Tu netreba nič.
@@ -219,6 +224,7 @@ namespace P2PShare.Server
             }
             finally
             {
+                connections.ForEach(x =>  x.Dispose());
                 _cancellationTokenSource.Dispose();
                 _cancellationTokenSource = null;
             }
