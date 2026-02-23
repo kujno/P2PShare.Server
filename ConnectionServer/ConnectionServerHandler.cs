@@ -1,6 +1,7 @@
 ﻿using P2PShare.Libs;
 using P2PShare.Libs.Models.Requests;
 using P2PShare.Server.DBAccess;
+using System.Net;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -25,8 +26,11 @@ namespace P2PShare.Server.ConnectionServer
         {
             Request request;
             bool auth = false;
+            string? remoteEndPoint;
 
             Client = await ReceiveTcpClientAsync(_port);
+            remoteEndPoint = Client.Client.RemoteEndPoint?.ToString();
+            IPAddress.TryParse(remoteEndPoint?.Substring(0, remoteEndPoint.IndexOf(':')), out _ipRemote);
 
             do
             {
@@ -38,7 +42,9 @@ namespace P2PShare.Server.ConnectionServer
                     case Tag.Register:
                         if ((await DBContext.GetUsernamesAsync()).Where(x => x == request.Username).ToArray().Length == 0)
                         {
-                            await DBContext.AddUserAsync(request.Username!, Hasher.Hash(request.Password!), request.Name!, request.Surename!);
+                            string hash = Hasher.Hash(request.Password!);
+
+                            await DBContext.AddUserAsync(request.Username!, hash, request.Name!, request.Surename!);
 
                             Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\{request.Username}");
 
