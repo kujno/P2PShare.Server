@@ -335,5 +335,7 @@ namespace P2PShare.Server.DBAccess
                 Surename = result["surename"]
             };
         }
+
+        public static async Task<bool> DoesUserExistAsync(string username) => (await ExecQueryAsync("username", "users", $"username = \"{username}\"")).Count() == 1;
     }
 }
