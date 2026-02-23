@@ -4,7 +4,6 @@ using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 using System.IO.Compression;
 using System.Net;
-using System.Net.Sockets;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -80,11 +79,11 @@ namespace P2PShare.Server.ConnectionServer
                     var userFiles = await CreateUserFilesAsync(_usernameProp);
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
-                    bool check;
+                    bool check = false;
 
                     try
                     {
-                        check = false;
+
 
                         switch (request.Tag)
                         {
@@ -95,12 +94,13 @@ namespace P2PShare.Server.ConnectionServer
 
                             case Tag.Download:
                                 var authorized = VerifyUserAccessToFile(userFiles, request, out _, out _);
+                                string path;
 
                                 await _connectionHandler.YNSendAsync(true, authorized);
 
                                 if (authorized)
                                 {
-                                    var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
+                                    path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
 
                                     if (request.My)
                                         path += $"{_usernameProp}\\";
@@ -174,7 +174,7 @@ namespace P2PShare.Server.ConnectionServer
                                 if (check)
                                 {
                                     isFile = IsUnitFile(request.Unit);
-                                    var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
+                                    path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
 
                                     if (isFile)
                                     {
@@ -230,26 +230,27 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.Share:
-                                // get done
+                                path = $"{_appSettings.RootFolderPath}\\{_usernameProp}\\{request.FileName}";
+
+                                if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
+                                {
+                                    await DBContext.EditShares(path, _usernameProp, request.CanAdd, request.CanRename, request.CanDelete, request.Users ?? [], request.Groups ?? []);
+                                }
 
                                 break;
                         }
                     }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (SocketException)
-                    {
-                        throw;
-                    }
                     catch
                     {
                         check = false;
-                    }
 
-                    if (request.Tag != Tag.Get && request.Tag != Tag.Download)
-                        await _connectionHandler.YNSendAsync(request.Encrypted, check);
+                        throw;
+                    }
+                    finally
+                    {
+                        if (request.Tag != Tag.Get && request.Tag != Tag.Download)
+                            await _connectionHandler.YNSendAsync(request.Encrypted, check);
+                    }
                 }
             }
             catch (OperationCanceledException) { }
