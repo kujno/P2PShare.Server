@@ -5,6 +5,7 @@
         Start,
         Stop,
         Help,
+        Clear,
         Exit
     }
 }
