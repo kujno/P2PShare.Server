@@ -24,6 +24,8 @@ namespace P2PShare.Server
             Command? command;
             AppSettings appSettings;
 
+            ConnectionServer.ConnectionServer.ConnectionError += OnConnectionError;
+
             DisplayHeader();
 
             try
@@ -251,6 +253,12 @@ namespace P2PShare.Server
             }
 
             return running;
+        }
+
+        private static void OnConnectionError(object? sender, ConnectionErrorEventArgs e)
+        {
+            ChangeConsoleColor(ConsoleColor.Red);
+            Console.WriteLine($"{e.DateTime} - User: {e.Username} [{e.RemoteIP}] - {e.ErrorMessage}\n");
         }
     }
 }
