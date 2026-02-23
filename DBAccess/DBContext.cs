@@ -337,5 +337,50 @@ namespace P2PShare.Server.DBAccess
         }
 
         public static async Task<bool> DoesUserExistAsync(string username) => (await ExecQueryAsync("username", "users", $"username = \"{username}\"")).Count() == 1;
+
+        public static async Task EditShares(string path, string ownerUsername, bool canadd, bool canrename, bool candelete, User[] users, Group[] groups)
+        {
+            List<int> groupIDs = [];
+            int ownerID = await GetIDFromUsernameAsync(ownerUsername);
+            string inBlock = "(";
+
+            Array.ForEach(users, async x =>
+            {
+                var tag = "id";
+                var result = await ExecQueryAsync(tag, "usergroups", $"name = \"{x.Name}\" && isuser = 1");
+                groupIDs.Add(int.Parse(result.First()[tag]));
+            });
+
+            Array.ForEach(groups, async x =>
+            {
+                var tag = "id";
+                var result = await ExecQueryAsync(tag, "usergroups", $"name = \"{x.Name}\" && isuser = 0 && users_id = \"{ownerID}\"", "JOIN usergroups_has_users ON ");
+                groupIDs.Add(int.Parse(result.First()[tag]));
+            });
+
+            for (var i = 0; i < groupIDs.Count; i++)
+            {
+                inBlock += groupIDs[i];
+                if (i < groupIDs.Count - 1)
+                    inBlock += ", ";
+            }
+
+            inBlock += ")";
+
+            await ExecNonQueryAsync($"DELETE FROM shares WHERE usergroups_id NOT IN {inBlock};");
+
+            var results = await ExecQueryAsync("usergroups_id", "shares", $"path = \"{path}\"", "JOIN sharedfiles ON sharedfiles_id = id");
+            List<int> resultsList = [];
+            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First().First().Value);
+
+            foreach (var result in results)
+                resultsList.Add(int.Parse(result.First().Value));
+
+            groupIDs.ForEach(async x =>
+            {
+                if (!resultsList.Contains(x))
+                    await ExecNonQueryAsync($"INSERT INTO shares (usergroups_id, sharedfiles_id, canadd, canrename, candelete) VALUES ({x}, {fileID}, {(canadd ? 1 : 0)}, {(canrename ? 1 : 0)}, {(candelete ? 1 : 0)});");
+            });
+        }
     }
 }
