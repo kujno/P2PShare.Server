@@ -240,6 +240,7 @@ namespace P2PShare.Server.DBAccess
                 output.Add(new()
                 {
                     Name = groupNames[i],
+                    ID = groupIDs[i],
                     Admin = admins[i],
                     Users = users.ToArray(),
                 });
@@ -338,11 +339,42 @@ namespace P2PShare.Server.DBAccess
 
         public static async Task<bool> DoesUserExistAsync(string username) => (await ExecQueryAsync("username", "users", $"username = \"{username}\"")).Count() == 1;
 
-        public static async Task EditShares(string path, string ownerUsername, bool canadd, bool canrename, bool candelete, User[] users, Group[] groups)
+        public static async Task RemoveSharesAsync(string path, string ownerUsername, User[] users, Group[] groups)
+        {
+            var groupIDs = await GetGroupIDsAsync(users, groups, ownerUsername);
+            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First().First().Value);
+            var inBlock = String.Empty;
+
+            for (var i = 0; i < groupIDs.Length; i++)
+            {
+                inBlock += groupIDs[i];
+                if (i < groupIDs.Length - 1)
+                    inBlock += ", ";
+            }
+
+            await ExecNonQueryAsync($"DELETE FROM shares WHERE sharedfiles_id = {fileID} && usergroups_id IN ({inBlock});");
+        }
+
+        public static async Task AddSharesAsync(string path, string ownerUsername, User[] users, Group[] groups, bool canAdd, bool canRename, bool canDelete)
+        {
+            int[] results = (await ExecQueryAsync("usergroups_id", "shares", $"path = \"{path}\"", "JOIN sharedfiles ON sharedfiles_id = id"))
+                .Select(x => int.Parse(x.First().Value))
+                .ToArray();
+            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\""))
+                .First()
+                .First()
+                .Value);
+
+            Array.ForEach(await GetGroupIDsAsync(users, groups, ownerUsername), async x =>
+            {
+                if (!results.Contains(x))
+                    await ExecNonQueryAsync($"INSERT INTO shares (usergroups_id, sharedfiles_id, canadd, canrename, candelete) VALUES ({x}, {fileID}, {(canAdd ? 1 : 0)}, {(canRename ? 1 : 0)}, {(canDelete ? 1 : 0)});");
+            });
+        }
+
+        private static async Task<int[]> GetGroupIDsAsync(User[] users, Group[] groups, string ownerUsername)
         {
             List<int> groupIDs = [];
-            int ownerID = await GetIDFromUsernameAsync(ownerUsername);
-            string inBlock = "(";
 
             Array.ForEach(users, async x =>
             {
@@ -354,33 +386,50 @@ namespace P2PShare.Server.DBAccess
             Array.ForEach(groups, async x =>
             {
                 var tag = "id";
-                var result = await ExecQueryAsync(tag, "usergroups", $"name = \"{x.Name}\" && isuser = 0 && users_id = \"{ownerID}\"", "JOIN usergroups_has_users ON ");
+                var result = await ExecQueryAsync(tag, "usergroups", $"name = \"{x.Name}\" && isuser = 0 && users_id = \"{await GetIDFromUsernameAsync(ownerUsername)}\"", "JOIN usergroups_has_users ON ");
                 groupIDs.Add(int.Parse(result.First()[tag]));
             });
 
-            for (var i = 0; i < groupIDs.Count; i++)
+            return groupIDs.ToArray();
+        }
+
+        public async static Task<Share[]?> GetSharesAsync(string path, string username)
+        {
+            var groups = await GetUserGroupsAsync(username);
+            var users = await GetUsersAsync();
+            bool isuser;
+
+            return (await ExecQueryAsync(new string[]
             {
-                inBlock += groupIDs[i];
-                if (i < groupIDs.Count - 1)
-                    inBlock += ", ";
-            }
-
-            inBlock += ")";
-
-            await ExecNonQueryAsync($"DELETE FROM shares WHERE usergroups_id NOT IN {inBlock};");
-
-            var results = await ExecQueryAsync("usergroups_id", "shares", $"path = \"{path}\"", "JOIN sharedfiles ON sharedfiles_id = id");
-            List<int> resultsList = [];
-            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First().First().Value);
-
-            foreach (var result in results)
-                resultsList.Add(int.Parse(result.First().Value));
-
-            groupIDs.ForEach(async x =>
+                "usergroups_id",
+                "canadd",
+                "canrename",
+                "candelete",
+                "isuser",
+                "name",
+                "type"
+            }, "shares", $"path = \"{path}\"", "JOIN usergroups ON usergroups_id = id JOIN sharedfiles ON sharedfiles_id = sharedfiles.id"))
+            .Select(x => new Share()
             {
-                if (!resultsList.Contains(x))
-                    await ExecNonQueryAsync($"INSERT INTO shares (usergroups_id, sharedfiles_id, canadd, canrename, candelete) VALUES ({x}, {fileID}, {(canadd ? 1 : 0)}, {(canrename ? 1 : 0)}, {(candelete ? 1 : 0)});");
-            });
+                CanAdd = GetBoolFromTinyIntInString(x["canadd"]),
+                CanRename = GetBoolFromTinyIntInString(x["canrename"]),
+                CanDelete = GetBoolFromTinyIntInString(x["candelete"]),
+                User = (isuser = GetBoolFromTinyIntInString(x["isuser"])) ? users.First(y => y.Username == x["name"]) : null,
+                Group = !isuser ? groups.First(y => y.ID == int.Parse(x["usergroups_id"])) : null,
+                Type = Enum.Parse<Unit>(x["type"])
+            })
+            .ToArray();
+        }
+
+        public static async Task<Dictionary<string, Share[]?>> GetMyFileSharesAsync(string username)
+        {
+            Dictionary<string, Share[]?> output = [];
+
+            Array.ForEach((await ExecQueryAsync("path", "sharedfiles", $"owner_id = {await GetIDFromUsernameAsync(username)}"))
+                .Select(x => x["path"])
+                .ToArray(), async y => output.Add(y, await GetSharesAsync(y, username)));
+
+            return output;
         }
     }
 }
