@@ -207,12 +207,6 @@ namespace P2PShare.Server
                     doneConnections = connections.Where(x => x.IsDone).ToArray();
                     foreach (var doneConnection in doneConnections)
                     {
-                        try
-                        {
-                            doneConnection.Dispose();
-                        }
-                        catch { }
-
                         connections.Remove(doneConnection);
                     }
                 }
