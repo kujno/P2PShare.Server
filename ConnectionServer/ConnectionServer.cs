@@ -262,7 +262,7 @@ namespace P2PShare.Server.ConnectionServer
                     finally
                     {
                         if (request.Tag != Tag.Get && request.Tag != Tag.Download && ex is not SocketException)
-                            await _connectionHandler.YNSendAsync(request.Encrypted, check);
+                            await _connectionHandler.YNSendAsync(true, check);
                     }
                 }
             }
