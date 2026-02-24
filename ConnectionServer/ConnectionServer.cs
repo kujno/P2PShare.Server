@@ -4,6 +4,7 @@ using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Sockets;
 
 namespace P2PShare.Server.ConnectionServer
 {
@@ -80,6 +81,7 @@ namespace P2PShare.Server.ConnectionServer
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
                     bool check = false;
+                    Exception? ex = null;
 
                     try
                     {
@@ -245,15 +247,16 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
                         }
                     }
-                    catch
+                    catch (Exception exc)
                     {
                         check = false;
+                        ex = exc;
 
                         throw;
                     }
                     finally
                     {
-                        if (request.Tag != Tag.Get && request.Tag != Tag.Download)
+                        if (request.Tag != Tag.Get && request.Tag != Tag.Download && ex is not SocketException)
                             await _connectionHandler.YNSendAsync(request.Encrypted, check);
                     }
                 }
