@@ -229,13 +229,18 @@ namespace P2PShare.Server.ConnectionServer
 
                                 break;
 
-                            case Tag.Share:
+                            case Tag.AddShare:
                                 path = $"{_appSettings.RootFolderPath}\\{_usernameProp}\\{request.FileName}";
 
                                 if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
-                                {
-                                    await DBContext.EditShares(path, _usernameProp, request.CanAdd, request.CanRename, request.CanDelete, request.Users ?? [], request.Groups ?? []);
-                                }
+                                    await DBContext.AddSharesAsync(path, _usernameProp, request.Users ?? [], request.Groups ?? [], request.CanAdd, request.CanRename, request.CanDelete);
+
+                                break;
+                            case Tag.RemoveShare:
+                                path = $"{_appSettings.RootFolderPath}\\{_usernameProp}\\{request.FileName}";
+
+                                if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
+                                    await DBContext.RemoveSharesAsync(path, _usernameProp, request.Users ?? [], request.Groups ?? []);
 
                                 break;
                         }
@@ -305,7 +310,7 @@ namespace P2PShare.Server.ConnectionServer
                         throw new NotImplementedException("Unknown unit type.");
                 }
             });
-            return new AllUserInfo()
+            var allUserInfo = new AllUserInfo()
             {
                 User = await DBContext.GetUserInfoAsync(_usernameProp),
                 MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_usernameProp}", _usernameProp, true, true, true),
@@ -314,6 +319,24 @@ namespace P2PShare.Server.ConnectionServer
                 SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null,
                 UserGroups = await DBContext.GetUserGroupsAsync(_usernameProp)
             };
+
+            var shares = await DBContext.GetMyFileSharesAsync(_usernameProp);
+
+            foreach (var share in shares)
+            {
+                var pathParts = GetPathParts(share.Key.Substring(share.Key.IndexOf($"{_appSettings.RootFolderPath}\\{_usernameProp}\\" + 1)));
+                Dir curDir = allUserInfo.MyDir;
+
+                for (var i = 0; i < pathParts.Length - 1; i++)
+                    curDir = curDir.Dirs!.First(x => x.Name == pathParts[i]);
+
+                if (share.Value?.First().Type is Unit.File)
+                    curDir.Fils?.First(x => x.Name == pathParts.Last()).Shares = share.Value;
+                else
+                    curDir.Dirs?.First(x => x.Name == pathParts.Last()).Shares = share.Value;
+            }
+
+            return allUserInfo;
         }
 
         private bool VerifyUserAccessToFile(AllUserInfo userFiles, Request request, out Dir currentDir, out Fil? currentFil, bool oneLevelHigher = false)
@@ -325,11 +348,9 @@ namespace P2PShare.Server.ConnectionServer
             var firstCurrentDir = request.My ? userFiles.MyDir.Dirs!.ToArray() : userFiles.SharedDirs!.ToArray();
 
             if (oneLevelHigher)
-            {
-                firstCurrentDir = firstCurrentDir[0..(firstCurrentDir.Length - 1)];
-                isDirectory = true;
-            }
-            currentDir = new(String.Empty, _usernameProp, null, firstCurrentDir);
+                iterationsCount--;
+
+            currentDir = new(String.Empty, _usernameProp, false, false, false, null, firstCurrentDir);
 
             for (int i = 0; i < iterationsCount && check; i++)
             {
