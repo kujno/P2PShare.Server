@@ -48,7 +48,7 @@ namespace P2PShare.Server.DBAccess
             return usernames.ToArray();
         }
 
-        public static async Task<User[]> GetUsersAsync()
+        public static async Task<User[]> GetUsersAsync(string username)
         {
             List<User> users = [];
 
@@ -57,7 +57,7 @@ namespace P2PShare.Server.DBAccess
                 "username",
                 "name",
                 "surename"
-            }, "users"), x => users.Add(new()
+            }, "users", $"username != \"{username}\""), x => users.Add(new()
             {
                 Username = x["username"],
                 Name = x["name"],
@@ -206,7 +206,7 @@ namespace P2PShare.Server.DBAccess
                 "users.username",
                 "users.name",
                 "users.surename"
-            }, "usergroups", null, "JOIN usergroups_has_users ON usergroups.id = usergroups_id JOIN users ON users_id = users.id"), x =>
+            }, "usergroups", "isuser = 0", "JOIN usergroups_has_users ON usergroups.id = usergroups_id JOIN users ON users_id = users.id"), x =>
             {
                 groupNames.Add(x["usergroups_name"]);
                 groupIDs.Add(int.Parse(x["usergroups_id"]));
@@ -396,7 +396,7 @@ namespace P2PShare.Server.DBAccess
         public async static Task<Share[]?> GetSharesAsync(string path, string username)
         {
             var groups = await GetUserGroupsAsync(username);
-            var users = await GetUsersAsync();
+            var users = await GetUsersAsync(username);
             bool isuser;
 
             return (await ExecQueryAsync(new string[]

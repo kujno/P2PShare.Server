@@ -1,4 +1,5 @@
-﻿using P2PShare.Server.DBAccess;
+﻿using P2PShare.Libs;
+using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
 
 namespace P2PShare.Server
@@ -27,10 +28,21 @@ namespace P2PShare.Server
 
             ConnectionServer.ConnectionServer.ConnectionError += OnConnectionError;
 
-            DisplayHeader();
-
             try
             {
+                while (InterfaceHandling.GetUpInterfaces().Length == 0)
+                {
+                    DisplayHeader();
+                    
+                    ChangeConsoleColor(ConsoleColor.Red);
+
+                    Console.WriteLine("Server not connected to the network. Connect and try again by pressing any key!");
+
+                    Console.ReadKey();
+                }
+
+                DisplayHeader();
+
                 if (!File.Exists(AppSettings.AppSettingsFileName))
                 {
                     appSettings = new AppSettings()
