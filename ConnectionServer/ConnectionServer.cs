@@ -18,12 +18,6 @@ namespace P2PShare.Server.ConnectionServer
         private string? _username;
         private Task? _communication;
 
-        private string? _usernameProp
-        {
-            get => _username
-                ?? throw new ArgumentNullException($"{nameof(_usernameProp)} is null.");
-        }
-
         public static event EventHandler<ConnectionErrorEventArgs>? ConnectionError;
 
         public ConnectionServer(AppSettings appSettings, CancellationToken cancellationToken)
@@ -72,12 +66,12 @@ namespace P2PShare.Server.ConnectionServer
             {
                 _username = await _connectionHandler.AuthOnNewPortAsync();
 
-                await _connectionHandler.SendInfoAsync((await CreateUserFilesAsync(_usernameProp!)).ToJSON());
+                await _connectionHandler.SendInfoAsync((await CreateUserFilesAsync(_username!)).ToJSON());
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     var request = Request.Create(await _connectionHandler.ReceiveInfoAsync());
-                    var userFiles = await CreateUserFilesAsync(_usernameProp!);
+                    var userFiles = await CreateUserFilesAsync(_username!);
                     var userFilesJSON = userFiles.ToJSON();
                     var pathParts = request.FileName is not null ? GetPathParts(request.FileName) : null;
                     bool check = false;
@@ -105,7 +99,7 @@ namespace P2PShare.Server.ConnectionServer
                                     path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
 
                                     if (request.My)
-                                        path += $"{_usernameProp}\\";
+                                        path += $"{_username}\\";
                                     path += request.FileName;
 
                                     // pre priecinok vytvorit zip v tempe
@@ -132,10 +126,12 @@ namespace P2PShare.Server.ConnectionServer
 
                                 if (check = dir.CanAdd)
                                 {
+                                    int lastIndexOfSeparator = request.FileName!.LastIndexOf(_fileSeparator);
+
                                     await _connectionHandler.ReceiveFilesAsync(new()
-                                {
-                                    { pathParts.Last(), request.FileSize }
-                                }, $"{_appSettings.RootFolderPath}{dir.Owner}{request.FileName!.Substring(0, request.FileName.LastIndexOf(_fileSeparator))}", request.Encrypted);
+                                    {
+                                        { pathParts.Last(), request.FileSize }
+                                    }, $"{_appSettings.RootFolderPath}{_fileSeparator}{(request.My ? $"{_username}{_fileSeparator}" : String.Empty)}{(lastIndexOfSeparator != -1 ? request.FileName!.Substring(0, lastIndexOfSeparator) : String.Empty)}", request.Encrypted);
                                 }
 
                                 break;
@@ -155,7 +151,7 @@ namespace P2PShare.Server.ConnectionServer
 
                                 if (!isFile)
                                 {
-                                    VerifyUserAccessToFile(owner == _usernameProp ? userFiles : await CreateUserFilesAsync(owner), request, out dir, out fil, true);
+                                    VerifyUserAccessToFile(owner == _username ? userFiles : await CreateUserFilesAsync(owner), request, out dir, out fil, true);
 
                                     check = check
                                         && dir.Dirs!.All(x => !String.Equals(x.Name, unitName));
@@ -201,7 +197,7 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.AddGroup:
-                                check = _usernameProp == request.Group!.Admin.Username
+                                check = _username == request.Group!.Admin.Username
                                     && (await DBContext.GetUserGroupsAsync()).All(x => x.Name != request.Group.Name);
 
                                 if (check)
@@ -210,7 +206,7 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.EditGroup:
-                                check = _usernameProp == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
+                                check = _username == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
 
                                 if (check)
                                 {
@@ -224,7 +220,7 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.DeleteGroup:
-                                check = _usernameProp == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
+                                check = _username == await DBContext.GetUserGroupAdminAsync(request.Group!.Name);
 
                                 if (check)
                                     await DBContext.ExecNonQueryAsync($"DELETE FROM usergroups WHERE name = \"{request.Group.Name}\"");
@@ -232,22 +228,22 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.AddShare:
-                                path = $"{_appSettings.RootFolderPath}\\{_usernameProp}\\{request.FileName}";
+                                path = $"{_appSettings.RootFolderPath}\\{_username}\\{request.FileName}";
 
                                 if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
-                                    await DBContext.AddSharesAsync(path, _usernameProp!, request.Users ?? [], request.Groups ?? [], request.CanAdd, request.CanRename, request.CanDelete);
+                                    await DBContext.AddSharesAsync(path, _username!, request.Users ?? [], request.Groups ?? [], request.CanAdd, request.CanRename, request.CanDelete);
 
                                 break;
                             case Tag.RemoveShare:
-                                path = $"{_appSettings.RootFolderPath}\\{_usernameProp}\\{request.FileName}";
+                                path = $"{_appSettings.RootFolderPath}\\{_username}\\{request.FileName}";
 
                                 if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
-                                    await DBContext.RemoveSharesAsync(path, _usernameProp!, request.Users ?? [], request.Groups ?? []);
+                                    await DBContext.RemoveSharesAsync(path, _username!, request.Users ?? [], request.Groups ?? []);
 
                                 break;
                             case Tag.AddFolder:
                                 if (check = VerifyUserAccessToFile(userFiles, request, out dir, out _, true) && dir.CanAdd)
-                                    Directory.CreateDirectory($"{_appSettings.RootFolderPath}\\{(request.My ? $"{_usernameProp}\\" : String.Empty)}{request.FileName}");
+                                    Directory.CreateDirectory($"{_appSettings.RootFolderPath}\\{(request.My ? $"{_username}\\" : String.Empty)}{request.FileName}");
 
                                 break;
                         }
@@ -285,7 +281,7 @@ namespace P2PShare.Server.ConnectionServer
             {
                 ErrorMessage = ex.Message,
                 RemoteIP = _connectionHandler.IPRemote,
-                Username = _usernameProp ?? "Unknown",
+                Username = _username ?? "Unknown",
                 DateTime = DateTime.Now
             });
         }
@@ -322,19 +318,19 @@ namespace P2PShare.Server.ConnectionServer
             });
             var allUserInfo = new AllUserInfo()
             {
-                User = await DBContext.GetUserInfoAsync(_usernameProp!),
-                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_usernameProp}", _usernameProp!, true, true, true),
+                User = await DBContext.GetUserInfoAsync(_username!),
+                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}", _username!, true, true, true),
                 Users = await DBContext.GetUsersAsync(),
                 SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
                 SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null,
-                UserGroups = await DBContext.GetUserGroupsAsync(_usernameProp!)
+                UserGroups = await DBContext.GetUserGroupsAsync(_username!)
             };
 
-            var shares = await DBContext.GetMyFileSharesAsync(_usernameProp!);
+            var shares = await DBContext.GetMyFileSharesAsync(_username!);
 
             foreach (var share in shares)
             {
-                var pathParts = GetPathParts(share.Key.Substring(share.Key.IndexOf($"{_appSettings.RootFolderPath}\\{_usernameProp}\\" + 1)));
+                var pathParts = GetPathParts(share.Key.Substring(share.Key.IndexOf($"{_appSettings.RootFolderPath}\\{_username}\\" + 1)));
                 Dir curDir = allUserInfo.MyDir;
 
                 for (var i = 0; i < pathParts.Length - 1; i++)
@@ -359,7 +355,7 @@ namespace P2PShare.Server.ConnectionServer
             if (oneLevelHigher)
                 iterationsCount--;
 
-            currentDir = request.My ? userFiles.MyDir : new(String.Empty, _usernameProp!, false, false, false, null, userFiles.SharedDirs!.ToArray());
+            currentDir = request.My ? userFiles.MyDir : new(String.Empty, _username!, false, false, false, null, userFiles.SharedDirs!.ToArray());
 
             for (int i = 0; i < iterationsCount && check; i++)
             {
