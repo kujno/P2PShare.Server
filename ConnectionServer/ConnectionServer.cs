@@ -256,24 +256,16 @@ namespace P2PShare.Server.ConnectionServer
                                     await DBContext.ExecNonQueryAsync($"DELETE FROM usergroups WHERE name = \"{request.Group.Name}\"");
 
                                 break;
-
-                            case Tag.AddShare:
-                                path = $"{_appSettings.RootFolderPath}\\{_username}\\{request.FileName}";
-
-                                if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
-                                    await DBContext.AddSharesAsync(path, _username!, request.Users ?? [], request.Groups ?? [], request.CanAdd, request.CanRename, request.CanDelete);
-
-                                break;
-                            case Tag.RemoveShare:
-                                path = $"{_appSettings.RootFolderPath}\\{_username}\\{request.FileName}";
-
-                                if (check = (request.Unit == Unit.File && File.Exists(path)) || (request.Unit == Unit.Directory && Directory.Exists(path)))
-                                    await DBContext.RemoveSharesAsync(path, _username!, request.Users ?? [], request.Groups ?? []);
-
-                                break;
                             case Tag.AddFolder:
                                 if (check = VerifyUserAccessToFile(userFiles, request, out dir, out _, true) && dir.CanAdd)
                                     Directory.CreateDirectory($"{_appSettings.RootFolderPath}\\{(request.My ? $"{_username}\\" : String.Empty)}{request.FileName}");
+
+                                break;
+                            case Tag.ChangeSharing:
+                                path = $"{_appSettings.RootFolderPath}\\{_username}\\{request.FileName}";
+
+                                check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
+                                check = check && await DBContext.ChangeShares(_username, path, request.Shares!, request.Unit == Unit.File ? fil?.Shares : dir.Shares);
 
                                 break;
                         }

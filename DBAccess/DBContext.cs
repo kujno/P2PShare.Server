@@ -435,10 +435,44 @@ namespace P2PShare.Server.DBAccess
         public static async Task<long> GetUserSpace(string username)
         {
             string tag = "space";
-            
+
             return long
                 .Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\""))
                 .First()[tag]);
+        }
+
+        public static async Task<bool> ChangeShares(string username, string path, Share[] newShares, Share[]? oldShares)
+        {
+            var userID = await GetIDFromUsernameAsync(username);
+            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First()["id"]);
+
+            if (int.Parse((await ExecQueryAsync("owner_id", "sharedfiles", $"path = \"{path}\"")).First()["owner_id"]) != userID)
+            {
+                return false;
+            }
+
+            Array.ForEach(oldShares ?? [], async x =>
+            {
+                if (!newShares.Contains(x))
+                {
+                    await ExecNonQueryAsync($"DELETE FROM shares WHERE usergroups_id = {(x.Group is not null ? x.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{x.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])} && sharedfiles_id = {fileID}");
+                }
+            });
+
+            Array.ForEach(newShares ?? [], async x =>
+            {
+                if (oldShares.Contains(x))
+                {
+                    await ExecNonQueryAsync($"DELETE FROM shares WHERE usergroups_id = {(x.Group is not null ? x.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{x.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])} && sharedfiles_id = {fileID}");
+                    await ExecNonQueryAsync($"INSERT INTO shares (sharedfiles_id, usergroups_id, candelete, canrename, canadd) VALUES ({fileID}, {(x.Group is not null ? x.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{x.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])}, {(x.CanDelete ? 1 : 0)}, {(x.CanRename ? 1 : 0)}, {(x.CanAdd ? 1 : 0)})");
+                }
+                else
+                {
+                    await ExecNonQueryAsync($"INSERT INTO shares (sharedfiles_id, usergroups_id, candelete, canrename, canadd) VALUES ({fileID}, {(x.Group is not null ? x.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{x.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])}, {(x.CanDelete ? 1 : 0)}, {(x.CanRename ? 1 : 0)}, {(x.CanAdd ? 1 : 0)})");
+                }
+            });
+
+            return true;
         }
     }
 }
