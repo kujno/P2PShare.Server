@@ -89,30 +89,48 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.Download:
-                                var authorized = VerifyUserAccessToFile(userFiles, request, out _, out _);
-                                string path;
+                                check = VerifyUserAccessToFile(userFiles, request, out _, out _);
+                                var path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
+                                var isDir = request.Unit == Unit.Directory;
 
-                                await _connectionHandler.YNSendAsync(true, authorized);
 
-                                if (authorized)
+                                if (check)
                                 {
-                                    path = $"{_appSettings.RootFolderPath}{_fileSeparator}";
-
                                     if (request.My)
                                         path += $"{_username}\\";
                                     path += request.FileName;
 
                                     // pre priecinok vytvorit zip v tempe
-                                    if (request.Unit == Unit.Directory)
+                                    if (isDir)
                                     {
                                         var pathTemp = path;
 
-                                        path = $"{_appSettings.RootFolderPath}{_fileSeparator}temp{_fileSeparator}{pathParts!.Last()}.zip";
+                                        path = $"{_appSettings.RootFolderPath}{_fileSeparator}temp{_fileSeparator}{_username}{_fileSeparator}{pathParts!.Last()}.zip";
 
-                                        await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
+                                        try
+                                        {
+                                            await ZipFile.CreateFromDirectoryAsync(pathTemp, path, _cancellationToken);
+                                        }
+                                        catch
+                                        {
+                                            check = false;
+                                        }
                                     }
+                                }
 
-                                    await _connectionHandler.SendFileAsync(new(path), request.Encrypted);
+                                // odpoved
+                                await _connectionHandler.YNSendAsync(true, check);
+
+                                if (check)
+                                {
+                                    FileInfo[] fileInfoArr = [new(path)];
+
+                                    await _connectionHandler.SendInviteAsync(fileInfoArr, true);
+
+                                    await _connectionHandler.SendFilesAsync(fileInfoArr, request.Encrypted);
+
+                                    if (isDir)
+                                        File.Delete(path);
                                 }
 
                                 break;
@@ -125,15 +143,25 @@ namespace P2PShare.Server.ConnectionServer
                                 check = VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
 
                                 await _connectionHandler.YNSendAsync(true, check = dir.CanAdd && check);
-                                
+
+                                int indexOfSeparator = -1;
+                                string owner = request.My ? _username : request.FileName!.Substring(0, indexOfSeparator = request.FileName.IndexOf('\\'));
+                                string rootUserPath = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}";
+                                check = check && GetDirectorySize(new DirectoryInfo(rootUserPath)) + request.FileSize <= await DBContext.GetUserSpace(owner);
+
                                 if (check)
                                 {
-                                    int lastIndexOfSeparator = request.FileName!.LastIndexOf(_fileSeparator);
+                                    rootUserPath += _fileSeparator;
+                                    string fileNameTemp = indexOfSeparator == -1 ? request.FileName! : request.FileName!.Substring(indexOfSeparator + 1);
+                                    int lastIndexOfSeparator = fileNameTemp.LastIndexOf(_fileSeparator);
+
+                                    if (lastIndexOfSeparator != -1)
+                                        fileNameTemp = fileNameTemp.Substring(0, lastIndexOfSeparator);
 
                                     await _connectionHandler.ReceiveFilesAsync(new()
                                     {
                                         { pathParts.Last(), request.FileSize }
-                                    }, $"{_appSettings.RootFolderPath}{_fileSeparator}{(request.My ? $"{_username}{_fileSeparator}" : String.Empty)}{(lastIndexOfSeparator != -1 ? request.FileName!.Substring(0, lastIndexOfSeparator) : String.Empty)}", request.Encrypted);
+                                    }, $"{rootUserPath}{_fileSeparator}{(lastIndexOfSeparator != -1 ? request.FileName!.Substring(0, lastIndexOfSeparator) : String.Empty)}", request.Encrypted);
                                 }
 
                                 break;
@@ -143,7 +171,7 @@ namespace P2PShare.Server.ConnectionServer
                                 Fil? fil;
                                 check = VerifyUserAccessToFile(userFiles, request, out dir, out fil);
                                 var isFile = IsUnitFile(request.Unit);
-                                var owner = isFile ? fil!.Owner : dir.Owner;
+                                owner = isFile ? fil!.Owner : dir.Owner;
 
                                 userFolder = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}{_fileSeparator}";
                                 oldPath = userFolder + request.FileName;
@@ -412,6 +440,19 @@ namespace P2PShare.Server.ConnectionServer
             File.Delete(path);
 
             await DBContext.DeleteSharedFile(path);
+        }
+
+        private long GetDirectorySize(DirectoryInfo directory)
+        {
+            long output = 0;
+
+            foreach (var file in directory.GetFiles())
+                output += file.Length;
+
+            foreach (var dir in directory.GetDirectories())
+                output += GetDirectorySize(dir);
+
+            return output;
         }
     }
 }

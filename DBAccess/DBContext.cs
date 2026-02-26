@@ -431,5 +431,14 @@ namespace P2PShare.Server.DBAccess
 
             return output;
         }
+
+        public static async Task<long> GetUserSpace(string username)
+        {
+            string tag = "space";
+            
+            return long
+                .Parse((await ExecQueryAsync(tag, "users", $"username = \"{username}\""))
+                .First()[tag]);
+        }
     }
 }

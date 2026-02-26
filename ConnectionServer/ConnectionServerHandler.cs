@@ -47,6 +47,7 @@ namespace P2PShare.Server.ConnectionServer
                             await DBContext.AddUserAsync(request.Username!, hash, request.Name!, request.Surename!);
 
                             Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\{request.Username}");
+                            Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\temp\\{request.Username}");
 
                             response = true;
                         }
