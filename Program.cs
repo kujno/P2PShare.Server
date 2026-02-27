@@ -1,6 +1,7 @@
 ﻿using P2PShare.Libs;
 using P2PShare.Server.DBAccess;
 using P2PShare.Server.Models;
+using System.Text;
 
 namespace P2PShare.Server
 {
@@ -33,7 +34,7 @@ namespace P2PShare.Server
                 while (InterfaceHandling.GetUpInterfaces().Length == 0)
                 {
                     DisplayHeader();
-                    
+
                     ChangeConsoleColor(ConsoleColor.Red);
 
                     Console.WriteLine("Server not connected to the network. Connect and try again by pressing any key!");
@@ -121,14 +122,26 @@ namespace P2PShare.Server
             switch (command)
             {
                 case Command.Start:
-                    _server = StartServerAsync();
+                    string message;
+                    ConsoleColor color = ConsoleColor.White;
 
-                    DisplayCommandOutput("Server started.");
+                    if (IsServerRunning())
+                    {
+                        message = "Server is already running. If restart's been intended, stop and start the server again!";
+
+                        color = ConsoleColor.Red;
+                    }
+                    else
+                    {
+                        _server = StartServerAsync();
+
+                        message = "Server started.";
+                    }
+
+                    DisplayCommandOutput(message, color);
 
                     break;
                 case Command.Stop:
-                    string message;
-
                     _cancellationTokenSource?.Cancel();
 
                     if (IsServerRunning())
@@ -230,7 +243,7 @@ namespace P2PShare.Server
             }
             finally
             {
-                connections.ForEach(x =>  x.Dispose());
+                connections.ForEach(x => x.Dispose());
                 _cancellationTokenSource.Dispose();
                 _cancellationTokenSource = null;
             }
@@ -267,10 +280,15 @@ namespace P2PShare.Server
             return running;
         }
 
-        private static void OnConnectionError(object? sender, ConnectionErrorEventArgs e)
+        private static async void OnConnectionError(object? sender, ConnectionErrorEventArgs e)
         {
+            string log = $"{e.DateTime} - User: {e.Username} [{e.RemoteIP}] - {e.ErrorMessage}\n";
+
             ChangeConsoleColor(ConsoleColor.Red);
-            Console.WriteLine($"{e.DateTime} - User: {e.Username} [{e.RemoteIP}] - {e.ErrorMessage}\n");
+
+            Console.WriteLine(log);
+            using (FileStream stream = new("log.txt", FileMode.Append))
+                await stream.WriteAsync(Encoding.UTF8.GetBytes(log));
         }
     }
 }

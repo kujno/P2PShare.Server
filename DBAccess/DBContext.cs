@@ -11,7 +11,7 @@ namespace P2PShare.Server.DBAccess
 
         public static bool GetBoolFromTinyIntInString(string input) => input == "1";
 
-        public static async Task DeleteSharedFile(string path) => await ExecNonQueryAsync($"DELETE FROM sharedfiles WHERE path = \"{path}\"");
+        public static async Task DeleteSharedFile(string path) => await ExecNonQueryAsync($"DELETE FROM sharedfiles WHERE path = \"{GetSQLPath(path)}\"");
 
         public static async Task UpdateGroupNameAsync(string oldName, string newName) => await ExecNonQueryAsync($"UPDATE usergroups SET name = \"{newName}\" WHERE name = \"{oldName}\";");
 
@@ -249,21 +249,30 @@ namespace P2PShare.Server.DBAccess
             return output.ToArray();
         }
 
-        public static async Task AddUserGroupAsync(Group group)
+        public static async Task<int> AddUserGroupAsyncAndReturnID(Group group, string username)
         {
-            int groupID, adminID = await GetIDFromUsernameAsync(group.Admin.Username);
-            List<int> userIDs = [];
+            var oldGroups = await GetUserGroupsAsync(username);
+            int id;
+
+            await ExecNonQueryAsync($"INSERT INTO usergroups (name, isuser) VALUES (\"{group.Name}\", 0);");
+
+            id = (await GetUserGroupsAsync(username)).First(x => oldGroups.FirstOrDefault(y => x.ID == y.ID) == null).ID;
+
+            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users VALUES (id, {await GetIDFromUsernameAsync(username)}, 1);");
+
+            return id;
+        }
+
+        public static async Task EditUserGroupAsync(Group group)
+        {
+            await ExecNonQueryAsync($"DELETE FROM usergroups_has_users WHERE usergroups_id = {group.ID} && isadmin = 0");
 
             foreach (var user in group.Users)
-                userIDs.Add(await GetIDFromUsernameAsync(user.Username));
+            {
+                await ExecNonQueryAsync($"INSERT INTO usergroups_has_user VALUES ({group.ID}, {await GetIDFromUsernameAsync(user.Username)}, 0);");
+            }
 
-            await ExecNonQueryAsync($"INSERT INTO usergroups (name) VALUES (\"{group.Name}\");");
-
-            groupID = int.Parse((await ExecQueryAsync("id", "usergroups", $"name = {group.Name}")).First()["id"]);
-
-            await ExecNonQueryAsync($"INSERT INTO usergroups_has_users VALUES ({groupID}, {adminID}, 1);");
-
-            userIDs.ForEach(async x => await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {x});"));
+            await ExecNonQueryAsync($"UPDATE usergroups SET name = \"{group.Name}\" WHERE id = {group.ID};");
         }
 
         public static async Task<bool> IsUserVerifiedAsync(string username)
@@ -276,19 +285,16 @@ namespace P2PShare.Server.DBAccess
                 : false;
         }
 
-        public static async Task<string> GetUserGroupAdminAsync(string groupName)
+        public static async Task<string> GetUserGroupAdminAsync(int groupID)
         {
             var tag = "username";
 
-            return (await ExecQueryAsync(tag, "users", $"usergroups.name = \"{groupName}\" && isadmin = 1", "JOIN usergroups_has_users ON users.id = users_id JOIN usergroups ON usergroups_id = usergroups.id")).First()[tag];
+            return (await ExecQueryAsync(tag, "users", $"usergroups_id = {groupID} && isadmin = 1", "JOIN usergroups_has_users ON id = users_id")).First()[tag];
         }
 
         public static async Task UpdateUsersInGroupAsync(Group oldGroup, Group newGroup)
         {
             string[] oldUsers = oldGroup.GetUsersUsernames(), newUsers = newGroup.GetUsersUsernames();
-            var tag = "id";
-            var groupID = (await ExecQueryAsync(tag, "groups", $"name = \"{newGroup.Name}\"")).First()[tag];
-
 
             Array.ForEach(oldUsers, async x =>
             {
@@ -315,7 +321,7 @@ namespace P2PShare.Server.DBAccess
                 }
 
                 if (!found)
-                    await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({groupID}, {await GetIDFromUsernameAsync(x)};");
+                    await ExecNonQueryAsync($"INSERT INTO usergroups_has_users (usergroups_id, users_id) VALUES ({newGroup.ID}, {await GetIDFromUsernameAsync(x)});");
             });
         }
 
@@ -338,39 +344,6 @@ namespace P2PShare.Server.DBAccess
         }
 
         public static async Task<bool> DoesUserExistAsync(string username) => (await ExecQueryAsync("username", "users", $"username = \"{username}\"")).Count() == 1;
-
-        public static async Task RemoveSharesAsync(string path, string ownerUsername, User[] users, Group[] groups)
-        {
-            var groupIDs = await GetGroupIDsAsync(users, groups, ownerUsername);
-            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First().First().Value);
-            var inBlock = String.Empty;
-
-            for (var i = 0; i < groupIDs.Length; i++)
-            {
-                inBlock += groupIDs[i];
-                if (i < groupIDs.Length - 1)
-                    inBlock += ", ";
-            }
-
-            await ExecNonQueryAsync($"DELETE FROM shares WHERE sharedfiles_id = {fileID} && usergroups_id IN ({inBlock});");
-        }
-
-        public static async Task AddSharesAsync(string path, string ownerUsername, User[] users, Group[] groups, bool canAdd, bool canRename, bool canDelete)
-        {
-            int[] results = (await ExecQueryAsync("usergroups_id", "shares", $"path = \"{path}\"", "JOIN sharedfiles ON sharedfiles_id = id"))
-                .Select(x => int.Parse(x.First().Value))
-                .ToArray();
-            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\""))
-                .First()
-                .First()
-                .Value);
-
-            Array.ForEach(await GetGroupIDsAsync(users, groups, ownerUsername), async x =>
-            {
-                if (!results.Contains(x))
-                    await ExecNonQueryAsync($"INSERT INTO shares (usergroups_id, sharedfiles_id, canadd, canrename, candelete) VALUES ({x}, {fileID}, {(canAdd ? 1 : 0)}, {(canRename ? 1 : 0)}, {(canDelete ? 1 : 0)});");
-            });
-        }
 
         private static async Task<int[]> GetGroupIDsAsync(User[] users, Group[] groups, string ownerUsername)
         {
@@ -397,7 +370,15 @@ namespace P2PShare.Server.DBAccess
         {
             var groups = await GetUserGroupsAsync(username);
             var users = await GetUsersAsync(username);
+            Dictionary<int, User> usersGroupIDs = [];
             bool isuser;
+
+            foreach (var user in users)
+            {
+                usersGroupIDs.Add(int
+                    .Parse((await ExecQueryAsync("id", "usergroups", $"name = \"{user.Username}\" && isuser = 1"))
+                    .First()["id"]), user);
+            }
 
             return (await ExecQueryAsync(new string[]
             {
@@ -406,15 +387,14 @@ namespace P2PShare.Server.DBAccess
                 "canrename",
                 "candelete",
                 "isuser",
-                "name",
                 "type"
-            }, "shares", $"path = \"{path}\"", "JOIN usergroups ON usergroups_id = id JOIN sharedfiles ON sharedfiles_id = sharedfiles.id"))
+            }, "usergroups", $"path = \"{GetSQLPath(path)}\"", "JOIN shares ON usergroups.id = usergroups_id JOIN sharedfiles ON sharedfiles_id = sharedfiles.id"))
             .Select(x => new Share()
             {
                 CanAdd = GetBoolFromTinyIntInString(x["canadd"]),
                 CanRename = GetBoolFromTinyIntInString(x["canrename"]),
                 CanDelete = GetBoolFromTinyIntInString(x["candelete"]),
-                User = (isuser = GetBoolFromTinyIntInString(x["isuser"])) ? users.First(y => y.Username == x["name"]) : null,
+                User = (isuser = GetBoolFromTinyIntInString(x["isuser"])) ? usersGroupIDs[int.Parse(x["usergroups_id"])] : null,
                 Group = !isuser ? groups.First(y => y.ID == int.Parse(x["usergroups_id"])) : null,
                 Type = Enum.Parse<Unit>(x["type"])
             })
@@ -424,10 +404,12 @@ namespace P2PShare.Server.DBAccess
         public static async Task<Dictionary<string, Share[]?>> GetMyFileSharesAsync(string username)
         {
             Dictionary<string, Share[]?> output = [];
+            var paths = (await ExecQueryAsync("path", "sharedfiles", $"owner_id = {await GetIDFromUsernameAsync(username)}")).Select(x => GetCSPath(x["path"]));
 
-            Array.ForEach((await ExecQueryAsync("path", "sharedfiles", $"owner_id = {await GetIDFromUsernameAsync(username)}"))
-                .Select(x => x["path"])
-                .ToArray(), async y => output.Add(y, await GetSharesAsync(y, username)));
+            foreach (var path in paths)
+            {
+                output.Add(path, await GetSharesAsync(path, username));
+            }
 
             return output;
         }
@@ -441,15 +423,17 @@ namespace P2PShare.Server.DBAccess
                 .First()[tag]);
         }
 
-        public static async Task<bool> ChangeShares(string username, string path, Share[] newShares, Share[]? oldShares)
+        public static async Task ChangeShares(string username, string path, Unit unit, Share[] newShares, Share[]? oldShares)
         {
             var userID = await GetIDFromUsernameAsync(username);
-            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{path}\"")).First()["id"]);
+            var sqlPath = GetSQLPath(path);
 
-            if (int.Parse((await ExecQueryAsync("owner_id", "sharedfiles", $"path = \"{path}\"")).First()["owner_id"]) != userID)
+            if ((await ExecQueryAsync("id", "sharedfiles", $"path = \"{sqlPath}\"")).Count() == 0)
             {
-                return false;
+                await ExecNonQueryAsync($"INSERT INTO sharedfiles (path, type, owner_id) VALUES (\"{sqlPath}\", \"{Enum.GetName(unit)}\", {userID})");
             }
+
+            var fileID = int.Parse((await ExecQueryAsync("id", "sharedfiles", $"path = \"{sqlPath}\"")).First()["id"]);
 
             Array.ForEach(oldShares ?? [], async x =>
             {
@@ -471,8 +455,9 @@ namespace P2PShare.Server.DBAccess
                     await ExecNonQueryAsync($"INSERT INTO shares (sharedfiles_id, usergroups_id, candelete, canrename, canadd) VALUES ({fileID}, {(x.Group is not null ? x.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{x.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])}, {(x.CanDelete ? 1 : 0)}, {(x.CanRename ? 1 : 0)}, {(x.CanAdd ? 1 : 0)})");
                 }
             });
-
-            return true;
         }
+
+        private static string GetSQLPath(string path) => path.Replace("\\", "\\\\\\\\");
+        private static string GetCSPath(string path) => path.Replace("\\\\", "\\");
     }
 }
