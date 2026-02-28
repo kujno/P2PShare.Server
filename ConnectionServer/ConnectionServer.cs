@@ -231,7 +231,7 @@ namespace P2PShare.Server.ConnectionServer
                                 break;
 
                             case Tag.CreateGroup:
-                                await DBContext.AddUserGroupAsyncAndReturnID(request.Group!, _username);
+                                await DBContext.AddUserGroupAsyncAndReturnID(request.Name!, _username);
 
                                 check = true;
 
