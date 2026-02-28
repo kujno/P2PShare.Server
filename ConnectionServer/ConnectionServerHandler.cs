@@ -1,0 +1,97 @@
+﻿using P2PShare.Libs;
+using P2PShare.Libs.Models.Requests;
+using P2PShare.Server.DBAccess;
+using System.Net;
+
+namespace P2PShare.Server.ConnectionServer
+{
+    public class ConnectionServerHandler : ConnectionHandler
+    {
+        private int _port;
+
+        public string IPRemote { get => _ipRemote?.ToString() ?? "Unknown"; }
+
+        public required AppSettings AppSettings { get; init; }
+
+        public async Task WaitForConnectionAsync()
+        {
+            using (Client = await ReceiveTcpClientAsync(_initialServerPort))
+            {
+                await ReceiveEncryptionKeyAsync();
+                _port = await SendPortAsync(true);
+            }
+        }
+
+        public async Task<string> AuthOnNewPortAsync()
+        {
+            Request request;
+            bool auth = false;
+            string? remoteEndPoint;
+
+            Client = await ReceiveTcpClientAsync(_port);
+            remoteEndPoint = Client.Client.RemoteEndPoint?.ToString();
+            IPAddress.TryParse(remoteEndPoint?.Substring(0, remoteEndPoint.IndexOf(':')), out _ipRemote);
+
+            do
+            {
+                request = Request.Create(await ReceiveInfoAsync());
+                bool response = false;
+
+                switch (request.Tag)
+                {
+                    case Tag.Register:
+                        if ((await DBContext.GetUsernamesAsync()).Where(x => x == request.Username).ToArray().Length == 0)
+                        {
+                            string hash = Hasher.Hash(request.Password!);
+
+                            await DBContext.AddUserAsync(request.Username!, hash, request.Name!, request.Surename!);
+
+                            Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\{request.Username}");
+                            Directory.CreateDirectory($"{AppSettings.RootFolderPath}\\temp\\{request.Username}");
+
+                            response = true;
+                        }
+
+                        break;
+
+                    case Tag.Login:
+                        if (await DBContext.DoesUserExistAsync(request.Username!))
+                        {
+                            string? dbHash;
+
+                            response = await DBContext.IsUserVerifiedAsync(request.Username!);
+
+                            if (response)
+                            {
+                                dbHash = await DBContext.GetPasswordHashAsync(request.Username!);
+
+                                if (dbHash is not null)
+                                    response = Hasher.Verify(request.Password!, dbHash);
+                            }
+
+                            auth = response;
+                        }
+
+                        break;
+                    default:
+                        throw new Exception("Invalid tag received during authentication.");
+                }
+
+                await YNSendAsync(true, response);
+            }
+            while (!auth);
+
+            return request.Username!;
+        }
+
+        public async Task SendFileAsync(FileInfo file, bool encrypted)
+        {
+            var fileArr = new FileInfo[] { file };
+
+            await SendInviteAsync(fileArr, encrypted);
+            await YNReceiveAsync(encrypted);
+
+            await SendFilesAsync(fileArr, encrypted);
+        }
+    }
+}
