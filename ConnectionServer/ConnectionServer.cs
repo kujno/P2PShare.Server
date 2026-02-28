@@ -173,9 +173,9 @@ namespace P2PShare.Server.ConnectionServer
 
                                 pathParts = GetPathParts(request.FileName!);
 
-                                check = VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
+                                VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
 
-                                await _connectionHandler.YNSendAsync(true, check = dir.CanAdd && check);
+                                await _connectionHandler.YNSendAsync(true, check = dir.CanAdd);
 
                                 int indexOfSeparator = -1;
                                 string owner = request.My ? _username : request.FileName!.Substring(0, indexOfSeparator = request.FileName.IndexOf('\\'));
@@ -302,7 +302,9 @@ namespace P2PShare.Server.ConnectionServer
 
                                 break;
                             case Tag.AddFolder:
-                                if (check = VerifyUserAccessToFile(userFiles, request, out dir, out _, true) && dir.CanAdd)
+                                VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
+
+                                if (check = dir.CanAdd)
                                 {
                                     path = $"{_appSettings.RootFolderPath}{_fileSeparator}{dir.Owner}";
 
@@ -450,15 +452,21 @@ namespace P2PShare.Server.ConnectionServer
         {
             bool check = true;
             var pathParts = GetPathParts(request.FileName!);
+            string reqOwner = String.Empty;
+            if (!request.My)
+            {
+                reqOwner = pathParts[0];
+                pathParts = pathParts[1..];
+            }
             var isDirectory = request.Unit == Unit.Directory;
-            var iterationsCount = isDirectory ? pathParts.Length : pathParts.Length - 1;
+            var iterationsCount = pathParts.Length;
 
-            if (oneLevelHigher && isDirectory)
+            if ((oneLevelHigher && isDirectory) || !isDirectory)
                 iterationsCount--;
 
-            currentDir = request.My ? userFiles.MyDir : new(String.Empty, _username!, false, false, false, userFiles.SharedFils, userFiles.SharedDirs);
+            currentDir = request.My ? userFiles.MyDir : new(String.Empty, _username!, false, false, false, userFiles.SharedFils, userFiles.SharedDirs, null, request.ID);
 
-            for (int i = request.My ? 0 : 1; i < iterationsCount && check; i++)
+            for (int i = 0; i < iterationsCount && check; i++)
             {
                 check = false;
 
@@ -466,11 +474,14 @@ namespace P2PShare.Server.ConnectionServer
                 {
                     foreach (var dir in currentDir.Dirs)
                     {
-                        if (dir.Name == pathParts[i] && (request.My ? true : dir.Owner == pathParts[0]))
+                        if (dir.Name == pathParts[i] && (request.My ? true : dir.Owner == reqOwner))
                         {
-                            currentDir = dir;
+                            if (dir.ID == request.ID)
+                            {
+                                currentDir = dir;
 
-                            check = true;
+                                check = true;
+                            }
                         }
                     }
                 }
@@ -478,6 +489,9 @@ namespace P2PShare.Server.ConnectionServer
 
             currentFil = null;
 
+            if (isDirectory && iterationsCount == 0)
+                return false;
+            
             if (isDirectory || oneLevelHigher || !check)
                 return check;
 
