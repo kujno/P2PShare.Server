@@ -177,25 +177,30 @@ namespace P2PShare.Server.ConnectionServer
                                 var isFile = IsUnitFile(request.Unit);
                                 owner = isFile ? fil!.Owner : dir.Owner;
 
-                                userFolder = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}{_fileSeparator}";
+                                userFolder = $"{_appSettings.RootFolderPath}{(request.My ? $"{_fileSeparator}{owner}" : String.Empty)}{_fileSeparator}";
                                 oldPath = userFolder + request.FileName;
                                 newPath = userFolder + request.NewFileName;
                                 check = check
-                                    && ((isFile && fil!.CanRename && dir.Fils is not null && dir.Fils.All(x => !String.Equals(x.Name, unitName))) || dir.CanRename);
+                                    && ((isFile && fil!.CanRename && dir.Fils is not null && dir.Fils.All(x => !String.Equals(x.Name, unitName))) || (!isFile && dir.CanRename));
 
                                 if (!isFile)
                                 {
+                                    request.My = true;
+
                                     VerifyUserAccessToFile(owner == _username ? userFiles : await CreateUserFilesAsync(owner), request, out dir, out fil, true);
 
                                     check = check
-                                        && dir.Dirs!.All(x => !String.Equals(x.Name, unitName));
+                                        && (dir.Dirs?.All(x => !String.Equals(x.Name, unitName)) ?? false);
                                 }
 
                                 if (check)
                                 {
-                                    File.Move(oldPath, newPath);
+                                    if (isFile)
+                                        File.Move(oldPath, newPath);
+                                    else
+                                        Directory.Move(oldPath, newPath);
 
-                                    await DBContext.ExecNonQueryAsync($"UPDATE sharedfiles SET path = {newPath} WHERE path = {oldPath}");
+                                    await DBContext.ChangePathAsync(oldPath, newPath);
                                 }
 
                                 break;
@@ -338,19 +343,19 @@ namespace P2PShare.Server.ConnectionServer
             });
             var allUserInfo = new AllUserInfo()
             {
-                User = await DBContext.GetUserInfoAsync(_username!),
-                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{_username}", _username!, true, true, true),
-                Users = await DBContext.GetUsersAsync(_username!),
+                User = await DBContext.GetUserInfoAsync(username),
+                MyDir = new Dir($"{_appSettings.RootFolderPath}\\{username}", username, true, true, true),
+                Users = await DBContext.GetUsersAsync(username),
                 SharedDirs = sharedDirs.Count > 0 ? sharedDirs.ToArray() : null,
                 SharedFils = sharedFils.Count > 0 ? sharedFils.ToArray() : null,
-                UserGroups = await DBContext.GetUserGroupsAsync(_username!)
+                UserGroups = await DBContext.GetUserGroupsAsync(username)
             };
 
-            var shares = await DBContext.GetMyFileSharesAsync(_username!);
+            var shares = await DBContext.GetMyFileSharesAsync(username);
 
             foreach (var share in shares)
             {
-                var relativePath = share.Key.Substring($"{_appSettings.RootFolderPath}\\{_username}\\".Length);
+                var relativePath = share.Key.Substring($"{_appSettings.RootFolderPath}\\{username}\\".Length);
                 var pathParts = GetPathParts(relativePath);
                 Dir curDir = allUserInfo.MyDir;
 
