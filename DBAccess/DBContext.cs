@@ -104,7 +104,7 @@ namespace P2PShare.Server.DBAccess
             }
         }
 
-        private static async Task<Dictionary<string, string>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null, string joinString = "")
+        public static async Task<Dictionary<string, string>[]> ExecQueryAsync<T>(T columns, string table, string? condition = null, string joinString = "")
         {
             var tType = columns?.GetType();
             string[] columnsArr;
@@ -159,6 +159,7 @@ namespace P2PShare.Server.DBAccess
             return await ExecQueryAsync(new string[]
             {
                 "path",
+                "sharedfiles.id",
                 "type",
                 "candelete",
                 "canrename",
@@ -397,7 +398,7 @@ namespace P2PShare.Server.DBAccess
                         await ExecNonQueryAsync($"DELETE FROM shares WHERE usergroups_id = {(share.Group is not null ? share.Group.ID : (await ExecQueryAsync("id", "usergroups", $"isuser = 1 && users_id = (SELECT id FROM users WHERE username = \"{share.User?.Username}\")", "JOIN usergroups_has_users ON id = usergroups_id")).First()["id"])} && sharedfiles_id = {fileID};");
                     }
                 }
-                
+
                 foreach (var share in newShares)
                 {
                     if (oldShares.Contains(share))
@@ -416,7 +417,7 @@ namespace P2PShare.Server.DBAccess
         }
 
         private static string GetSQLPath(string path) => path.Replace("\\", "\\\\\\\\");
-        private static string GetCSPath(string path) => path.Replace("\\\\", "\\");
+        public static string GetCSPath(string path) => path.Replace("\\\\", "\\");
 
         public static async Task ChangePathAsync(string oldPath, string newPath) => await DBContext.ExecNonQueryAsync($"UPDATE sharedfiles SET path = \"{GetSQLPath(newPath)}\" WHERE path = \"{GetSQLPath(oldPath)}\"");
     }
