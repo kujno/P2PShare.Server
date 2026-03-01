@@ -179,7 +179,7 @@ namespace P2PShare.Server
 
                     await DBContext.ExecNonQueryAsync("DELETE FROM users WHERE username = \"admin\";");
 
-                    await DBContext.AddUserAsync("admin", Hasher.Hash(GetString("Usernam is admin.\nPassword")), String.Empty, String.Empty);
+                    await DBContext.AddUserAsync("admin", Hasher.Hash(GetString("Username is admin.\nPassword")), String.Empty, String.Empty);
 
                     DisplayCommandOutput("New admin credentials created.");
 
