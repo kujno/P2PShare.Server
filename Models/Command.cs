@@ -6,6 +6,7 @@
         Stop,
         Help,
         Clear,
+        Newadmin,
         Exit
     }
 }

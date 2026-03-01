@@ -17,6 +17,7 @@ namespace P2PShare.Server
             { Command.Stop, "Stops the server." },
             { Command.Help, "Displays all of the commands." },
             { Command.Clear, "Clear the the command prompt and display server status."},
+            { Command.Newadmin, "Create new admin credentials and delete the old."},
             { Command.Exit, "Exits the application." }
         };
 
@@ -170,7 +171,18 @@ namespace P2PShare.Server
                 case Command.Exit:
                     // Tu netreba nič.
                     break;
+                case Command.Newadmin:
+                    AppSettings appSettings = await AppSettings.GetAsync(CancellationToken.None);
 
+                    await DBContext.InitAsync(appSettings.DBCredentials, CancellationToken.None);
+
+                    await DBContext.ExecNonQueryAsync("DELETE FROM users WHERE username = \"admin\";");
+
+                    await DBContext.AddUserAsync("admin", Hasher.Hash(GetString("Username is admin.\nPassword")), String.Empty, String.Empty);
+
+                    DisplayCommandOutput("New admin credentials created.");
+
+                    break;
                 default:
                     DisplayCommandOutput($"Unrecognized command. {_helpSuggestionText}!", ConsoleColor.Red);
                     break;
