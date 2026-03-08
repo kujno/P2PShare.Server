@@ -57,7 +57,7 @@ namespace P2PShare.Server.DBAccess
                 "username",
                 "name",
                 "surename"
-            }, "users", $"username != \"{username}\""), x => users.Add(new()
+            }, "users", $"username != \"{username}\" && username != \"admin\""), x => users.Add(new()
             {
                 Username = x["username"],
                 Name = x["name"],
