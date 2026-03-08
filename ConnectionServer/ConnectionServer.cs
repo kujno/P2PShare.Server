@@ -174,13 +174,14 @@ namespace P2PShare.Server.ConnectionServer
                                 pathParts = GetPathParts(request.FileName!);
 
                                 VerifyUserAccessToFile(userFiles, request, out dir, out _, true);
-
-                                await _connectionHandler.YNSendAsync(true, check = dir.CanAdd);
+                                check = dir.CanAdd;
 
                                 int indexOfSeparator = -1;
                                 string owner = request.My ? _username : request.FileName!.Substring(0, indexOfSeparator = request.FileName.IndexOf('\\'));
                                 string rootUserPath = $"{_appSettings.RootFolderPath}{_fileSeparator}{owner}";
                                 check = check && GetDirectorySize(new DirectoryInfo(rootUserPath)) + request.FileSize <= await DBContext.GetUserSpace(owner);
+
+                                await _connectionHandler.YNSendAsync(true, check);
 
                                 if (check)
                                 {
