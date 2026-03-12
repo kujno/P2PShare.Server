@@ -21,14 +21,22 @@ namespace P2PShare.Server.DBAccess
             _connectionString = $"Server={credentials.Server};Database={credentials.Database};User ID={credentials.UserID};Password={credentials.Password};";
         }
 
-        public static async Task AddUserAsync(string username, string hash, string name, string surename)
+        public static async Task AddUserAsync(string username, string hash, string name, string surename, bool admin = false)
         {
             int? idUser = null, idGroup = null;
             var tag = "id";
+            var userCreationString = $"INSERT INTO users (username, password_hash, name, surename) VALUES (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");";
 
+            if (admin)
+            {
+                await ExecNonQueryAsync(userCreationString);
+
+                return;
+            }
+            
             await ExecNonQueryAsync(new string[]
             {
-                $"INSERT INTO users (username, password_hash, name, surename) VALUES (\"{username}\", \"{hash}\", \"{name}\", \"{surename}\");",
+                userCreationString,
                 $"INSERT INTO usergroups (name, isuser) VALUES (\"{username}\", 1);"
             });
 
